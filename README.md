@@ -1,1 +1,1 @@
-"# terminalez" 
+# terminalez
