@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package terminalEz;
+
+service TerminalEz {
+  // Create a new SSH session for a given computer.
+  rpc InitiateConnection (InitiateConnectionRequest) returns (InitiateConnectionResponse);
+
+  // Stream real-time commands and terminal outputs to the session.
+  rpc Channel (stream ClientUpdate) returns (stream ServerUpdate);
+
+  // Gracefully shut down an existing SSH session.
+  rpc Close (CloseRequest) returns (CloseResponse);
+}
+
+message InitiateConnectionRequest {
+  string m_name = 1;
+}
+
+message InitiateConnectionResponse {
+  string session_id = 1;
+}
+
+message NewShell {
+  uint32 shell_id = 1; // Unique identifier for the shell
+  int32 x = 2;          // X position of the shell
+  int32 y = 3;          // Y position of the shell
+}
+
+// Message for sending data to the shell from the web client to the host machine
+message TerminalInput {
+  uint32 shell_id = 1; // Unique identifier for the shell
+  string data = 2; // Data to be sent to the shell
+  uint64 offset = 3; // Offset of the first byte for encryption.
+}
+
+// Message for receiving data from the shell on the host machine to the web client
+message TerminalOutput {
+  uint32 shell_id = 1; // Unique identifier for the shell
+  string data = 2; // Data received from the shell
+}
+
+// Sequence numbers for all active shells, used for synchronization
+message SequenceNumbers {
+  map<uint32, uint64> map = 1;    // Active shells and their sequence numbers
+}
+
+
+// Message for the web client from the the host machine
+message ClientUpdate {
+  oneof client_message {
+    string m_name = 1;            // Machine Name of the host.
+    TerminalOutput data = 2;      // Stream data from the host terminal.
+    NewShell created_shell = 3;   // Acknowledge that a new shell was created.
+    uint32 closed_shell = 4;      // Acknowledge that a shell was closed.
+  }
+}
+
+
+// Message for the host machine from the web client
+message ServerUpdate {
+  oneof server_message {
+    TerminalInput terminal_input = 1;     // Stream data to the host terminal.
+    NewShell create_shell = 2;  // ID of the shell that was created.
+    uint32 close_shell = 3;     // ID of a shell to close.
+    SequenceNumbers sync = 4;   // Periodic sequence number sync
+    TerminalSize resize = 5;    // Resize a terminal window
+  }
+}
+
+// Pair of a terminal ID and its associated size
+message TerminalSize {
+  uint32 shell_id = 1; // Unique identifier for the shell
+  uint32 rows = 2;     // Number of rows in the terminal
+  uint32 cols = 3;     // Number of columns in the terminal
+}
+
+message CloseRequest {
+  string m_name = 1; // Machine Name of the host.
+}
+
+message CloseResponse {
+  bool success = 1; // True if the session was closed successfully.
+}

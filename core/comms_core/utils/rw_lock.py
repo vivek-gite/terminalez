@@ -1,0 +1,63 @@
+import asyncio
+import copy
+
+
+class ReadWriteLock:
+
+    def __init__(self, initial_value=None):
+        self._read_ready: asyncio.Condition = asyncio.Condition()
+        self._readers = 0
+        self._writers_waiting = 0
+        self._writer_active = False
+        self._value = initial_value  # Shared resource
+
+    async def acquire_read(self):
+        async with self._read_ready:
+            while self._writer_active or self._writers_waiting > 0:
+                await self._read_ready.wait()
+            self._readers += 1
+
+    async def release_read(self):
+        async with self._read_ready:
+            self._readers -= 1
+            if self._readers == 0:
+                self._read_ready.notify_all()
+
+    async def acquire_write(self):
+        async with self._read_ready:
+            self._writers_waiting += 1
+            while self._writer_active or self._readers > 0:
+                await self._read_ready.wait()
+            self._writers_waiting -= 1
+            self._writer_active = True
+
+    async def release_write(self):
+        async with self._read_ready:
+            self._writer_active = False
+            self._read_ready.notify_all()
+
+    async def read(self):
+        """Safely read the value."""
+        await self.acquire_read()
+        try:
+            value = copy.deepcopy(self._value)
+        finally:
+            await self.release_read()
+        return value
+
+    async def write(self, new_value):
+        """Safely write a new value."""
+        await self.acquire_write()
+        try:
+            self._value = new_value
+        finally:
+            await self.release_write()
+
+    async def read_mut(self):
+        """ Gives the reference of the value which can be mutated."""
+        await self.acquire_read()
+        try:
+            value = self._value
+        finally:
+            await self.release_read()
+        return value
