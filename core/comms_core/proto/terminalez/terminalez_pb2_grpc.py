@@ -5,7 +5,7 @@ import warnings
 
 import terminalez_pb2 as terminalez__pb2
 
-GRPC_GENERATED_VERSION = '1.68.1'
+GRPC_GENERATED_VERSION = '1.69.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -36,8 +36,8 @@ class TerminalEzStub(object):
         """
         self.InitiateConnection = channel.unary_unary(
                 '/terminalEz.TerminalEz/InitiateConnection',
-                request_serializer=terminalez__pb2.InitiateConnectionRequest.SerializeToString,
-                response_deserializer=terminalez__pb2.InitiateConnectionResponse.FromString,
+                request_serializer=terminalez__pb2.InitialConnectionRequest.SerializeToString,
+                response_deserializer=terminalez__pb2.InitialConnectionResponse.FromString,
                 _registered_method=True)
         self.Channel = channel.stream_stream(
                 '/terminalEz.TerminalEz/Channel',
@@ -80,8 +80,8 @@ def add_TerminalEzServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'InitiateConnection': grpc.unary_unary_rpc_method_handler(
                     servicer.InitiateConnection,
-                    request_deserializer=terminalez__pb2.InitiateConnectionRequest.FromString,
-                    response_serializer=terminalez__pb2.InitiateConnectionResponse.SerializeToString,
+                    request_deserializer=terminalez__pb2.InitialConnectionRequest.FromString,
+                    response_serializer=terminalez__pb2.InitialConnectionResponse.SerializeToString,
             ),
             'Channel': grpc.stream_stream_rpc_method_handler(
                     servicer.Channel,
@@ -119,8 +119,8 @@ class TerminalEz(object):
             request,
             target,
             '/terminalEz.TerminalEz/InitiateConnection',
-            terminalez__pb2.InitiateConnectionRequest.SerializeToString,
-            terminalez__pb2.InitiateConnectionResponse.FromString,
+            terminalez__pb2.InitialConnectionRequest.SerializeToString,
+            terminalez__pb2.InitialConnectionResponse.FromString,
             options,
             channel_credentials,
             insecure,

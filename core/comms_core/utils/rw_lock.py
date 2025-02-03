@@ -2,14 +2,14 @@ import asyncio
 import copy
 
 
-class ReadWriteLock:
+class ReadWriteLock[T]:
 
     def __init__(self, initial_value=None):
         self._read_ready: asyncio.Condition = asyncio.Condition()
-        self._readers = 0
-        self._writers_waiting = 0
-        self._writer_active = False
-        self._value = initial_value  # Shared resource
+        self._readers: int = 0
+        self._writers_waiting: int = 0
+        self._writer_active: bool = False
+        self._value: T = initial_value  # Shared resource
 
     async def acquire_read(self):
         async with self._read_ready:
@@ -36,16 +36,16 @@ class ReadWriteLock:
             self._writer_active = False
             self._read_ready.notify_all()
 
-    async def read(self):
+    async def read(self) -> T:
         """Safely read the value."""
         await self.acquire_read()
         try:
-            value = copy.deepcopy(self._value)
+            value: T = copy.deepcopy(self._value)
         finally:
             await self.release_read()
         return value
 
-    async def write(self, new_value):
+    async def write(self, new_value: T):
         """Safely write a new value."""
         await self.acquire_write()
         try:
@@ -53,11 +53,11 @@ class ReadWriteLock:
         finally:
             await self.release_write()
 
-    async def read_mut(self):
+    async def read_mut(self) -> T:
         """ Gives the reference of the value which can be mutated."""
         await self.acquire_read()
         try:
-            value = self._value
+            value: T = self._value
         finally:
             await self.release_read()
         return value

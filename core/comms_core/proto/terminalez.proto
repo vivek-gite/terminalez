@@ -4,7 +4,7 @@ package terminalEz;
 
 service TerminalEz {
   // Create a new SSH session for a given computer.
-  rpc InitiateConnection (InitiateConnectionRequest) returns (InitiateConnectionResponse);
+  rpc InitiateConnection (InitialConnectionRequest) returns (InitialConnectionResponse);
 
   // Stream real-time commands and terminal outputs to the session.
   rpc Channel (stream ClientUpdate) returns (stream ServerUpdate);
@@ -13,12 +13,13 @@ service TerminalEz {
   rpc Close (CloseRequest) returns (CloseResponse);
 }
 
-message InitiateConnectionRequest {
-  string m_name = 1;
+message InitialConnectionRequest {
+  string m_name = 1;        // Machine Name of the host. format: "username@hostname"
 }
 
-message InitiateConnectionResponse {
-  string session_id = 1;
+message InitialConnectionResponse {
+  string session_id = 1;    // Random 10 digit session ID.
+  string url = 2;           // URL to connect to the session.
 }
 
 message NewShell {
@@ -37,7 +38,8 @@ message TerminalInput {
 // Message for receiving data from the shell on the host machine to the web client
 message TerminalOutput {
   uint32 shell_id = 1; // Unique identifier for the shell
-  string data = 2; // Data received from the shell
+  bytes data = 2; // Data received from the shell
+  int64 seq_num = 3; // Sequence number for synchronization
 }
 
 // Sequence numbers for all active shells, used for synchronization
@@ -49,10 +51,12 @@ message SequenceNumbers {
 // Message for the web client from the the host machine
 message ClientUpdate {
   oneof client_message {
-    string m_name = 1;            // Machine Name of the host.
+    string session_id = 1;        // Random 10 digit session ID.
     TerminalOutput data = 2;      // Stream data from the host terminal.
     NewShell created_shell = 3;   // Acknowledge that a new shell was created.
     uint32 closed_shell = 4;      // Acknowledge that a shell was closed.
+    int64 pong = 5;               // Pong message, response to the timestamp
+    string error = 6;             // Error message
   }
 }
 
@@ -65,6 +69,8 @@ message ServerUpdate {
     uint32 close_shell = 3;     // ID of a shell to close.
     SequenceNumbers sync = 4;   // Periodic sequence number sync
     TerminalSize resize = 5;    // Resize a terminal window
+    int64 ping = 6;             // Ping message, request for the timestamp
+    string error = 7;           // Error message
   }
 }
 
@@ -76,9 +82,31 @@ message TerminalSize {
 }
 
 message CloseRequest {
-  string m_name = 1; // Machine Name of the host.
+  string session_id = 1; // Machine Name of the host.
 }
 
 message CloseResponse {
   bool success = 1; // True if the session was closed successfully.
 }
+
+message EncryptedShellData {
+  uint64 seq_num = 1;
+  repeated bytes data = 2;
+  uint64 chunk_offset = 3;
+  uint64 byte_offset = 4;
+  bool closed = 5;
+  int32 winsize_x = 6;
+  int32 winsize_y = 7;
+  uint32 winsize_rows = 8;
+  uint32 winsize_cols = 9;
+}
+
+// Snapshot of a session, used to restore state for persistence across servers.
+message EncryptedSessionData {
+  map<uint32, EncryptedShellData> shells = 1;
+  uint32 next_sid = 2;
+  uint32 next_uid = 3;
+  string name = 4;
+}
+
+

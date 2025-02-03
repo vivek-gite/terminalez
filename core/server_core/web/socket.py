@@ -42,8 +42,8 @@ async def shell_stream_handler(shell_stream: WatchChannel.WatchReceiver, websock
     result: List[Tuple[libs.Sid, WsWinsize]] = await shell_stream.recv()
     await send(websocket, WsServer.Shells(shells=result))
 
-async def shell_chunks_handler( chunks_queue: queue.Queue[Tuple[libs.Sid, int, List[bytes]]], websocket: WebSocket) -> None:
-    sid, index, chunks = chunks_queue.get()
+async def shell_chunks_handler( chunks_queue: asyncio.Queue[Tuple[libs.Sid, int, List[bytes]]], websocket: WebSocket) -> None:
+    sid, index, chunks = await chunks_queue.get()
     await send(websocket, WsServer.Chunks(sid=sid, index=index, chunks=chunks))
 
 

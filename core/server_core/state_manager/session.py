@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Callable
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
@@ -21,7 +22,7 @@ SHELL_STORED_BYTES = 1 << 21  # 2 MiB
 @dataclass
 class Metadata:
     """Static metadata for this session."""
-    name: str
+    name: str # The name of the host computer running the session. Format: "username@hostname"
 
 
 class State:
@@ -41,22 +42,53 @@ class State:
 class Session:
     """In-memory state of a single terminalez session."""
 
-    def __init__(self, metadata: Metadata):
+    def __init__(self, metadata: Metadata = None):
         self.metadata: Metadata = metadata  # metadata of this session
-        self.users: ReadWriteLock(Dict[libs.Uid, protocol.WsUser]) = ReadWriteLock(
+        self.users: ReadWriteLock[Dict[libs.Uid, protocol.WsUser]] = ReadWriteLock(
             {})  # Metadata for currently connected users
         self.counter = libs.IdCounter()  # Counter for generating unique identifiers
         self.source = WatchChannel(
             [])  # Watch channel source for the ordered list of open shells and sizes which is of type `List[Tuple[libs.Sid, protocol.WsWinsize]]`
         self.broadcaster = BroadcastChannel(
             max_size=64)  # Broadcast channel for sending messages to all connected clients
-        self.shells: ReadWriteLock(Dict[libs.Sid, State]) = ReadWriteLock(
+        self.shells: ReadWriteLock[Dict[libs.Sid, State]] = ReadWriteLock(
             {})  # In-memory state of the session with Read-write lock for accessing the session state
         self.sync_notify: Notify = Notify()  # Condition variable for notifying when the session state has changed, Triggered from metadata events when an immediate snapshot is needed.
         self.shutdown: Shutdown = Shutdown()  # Shutdown object for managing session termination, set when this session has been closed and removed
         self.buffer_message: asyncio.Queue = asyncio.Queue()  # Access the sender of the client message channel for this session
+        self._last_access_time = time.time()  # The last time this session was accessed
+
+
+    async def send_latency_measurement(self, latency: int):
+        """Send a latency measurement of the data from the host machine."""
+        await self.broadcaster.broadcast(WsServer.ShellLatency(latency=latency))
+
+
+    def last_accessed(self):
+        """Return the last time this session was accessed."""
+        return self._last_access_time
+
+    def update_access_time(self) -> float:
+        """Update the last time this session was accessed."""
+        self._last_access_time = time.time()
+        return self._last_access_time
+
 
     async def sequence_numbers(self) -> terminalez_pb2.SequenceNumbers:
+        """
+        Retrieve the sequence numbers for all active shells in the session.
+
+        This method reads the current state of all shells in the session and constructs
+        a `SequenceNumbers` protobuf message containing the sequence numbers of all shells
+        that are not closed.
+
+        The `seq_num` represents the sequence number, indicating how many bytes have been received
+        for a particular shell.
+
+        Returns:
+            terminalez_pb2.SequenceNumbers: A protobuf message containing the sequence numbers
+            of all active shells.
+        """
         shells: Dict[libs.Sid, State] = await self.shells.read()
         sequence_numbers = terminalez_pb2.SequenceNumbers()
 

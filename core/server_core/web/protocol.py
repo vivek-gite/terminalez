@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from pydantic import BaseModel
 from typing import Optional, Tuple, List
 from core.comms_core.proto.identifiers import libs
