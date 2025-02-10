@@ -54,7 +54,7 @@ class GrpcServer(terminalez_pb2_grpc.TerminalEzServicer):
                 raise Exception("Session already exists")
 
             metadata: Metadata = Metadata(request.m_name)
-            self.server_state.insert(random_name, Session(metadata=metadata))
+            await self.server_state.insert(random_name, Session(metadata=metadata))
             url = f"/session/{random_name}"
 
             return terminalez_pb2.InitialConnectionResponse(

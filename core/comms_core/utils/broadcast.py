@@ -4,7 +4,7 @@ from typing import Any, List
 class BroadcastChannel:
     def __init__(self, max_size: int = 10):
         self._queues: List[asyncio.Queue] = []
-        self._max_size = max_size
+        self._max_size: int = max_size
 
     async def broadcast(self, value: Any):
         """Send a new value to all subscribers."""

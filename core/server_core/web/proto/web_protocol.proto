@@ -1,0 +1,167 @@
+syntax = "proto3";
+
+package ws_protocol;
+
+// Real-time window size update.
+message WsWinsize {
+  int32 x = 1;            // The top-left x-coordinate of the shell window, offset from the origin
+  int32 y = 2;            // The top-left y-coordinate of the shell window, offset from the origin
+  int32 rows = 3;         // The number of rows in the shell window
+  int32 cols = 4;         // The number of columns in the shell window
+}
+
+
+// Real-time message providing information about a user
+message WsUser {
+  string name = 1;
+  optional WsCursor cursor = 2;
+  optional int32 focus = 3;        //  libs.Sid  Unique identifier for a shell within the session.
+
+}
+
+// A tuple representing the cursor position.
+message WsCursor {
+    int32 x = 1;
+    int32 y = 2;
+}
+
+
+// A real-time message sent from the server over WebSocket.
+message WsServer {
+  // Initial server message, with the user's ID and session metadata.
+  message Hello {
+    // Unique identifier for a user within the session.
+    int32 user_id = 1;
+    string metadata = 2;
+  }
+
+  // A snapshot of all current users in the session.
+  message Users {
+    // keys is unique identifier for a user within the session.
+    map<int32, WsUser> users = 1;
+  }
+
+  // Info about a single user in the session: joined, left, or changed
+  message UserDiff {
+    enum ActionType {
+      JOINED = 0;
+      LEFT = 1;
+      CHANGED = 2;
+    }
+    int32 user_id = 1;  // Uid
+    WsUser user = 2;
+    optional ActionType action = 3;
+  }
+
+  // Notification when the set of open shells has changed
+  message Shells {
+    // keys is unique identifier for a shell within the session.
+    map<int32, WsWinsize> shells = 1;
+  }
+
+
+  // Subscription results, in the form of terminal data chunks.
+  message Chunks {
+    int32 sid = 1;
+    int32 index = 2;
+    repeated bytes chunks = 3;
+  }
+
+  // Forward a latency measurement between the server and backend shell.
+  message ShellLatency {
+    int32 latency = 1;
+  }
+
+  // Echo back a timestamp, for the client's own latency measurement.
+  message Pong {
+    int64 timestamp = 1;
+  }
+
+  // Alert the client of an application error.
+  message Error {
+    string message = 1;
+  }
+
+
+  oneof server_message {
+    Hello hello = 1;
+    Users users = 2;
+    UserDiff user_diff = 3;
+    Shells shells = 4;
+    Chunks chunks = 5;
+    ShellLatency shell_latency = 6;
+    Pong pong = 7;
+    Error error = 8;
+  }
+}
+
+
+message WsClient{
+  // Set the name of the current user
+  message SetName{
+    string name = 1;
+  }
+
+  // Send real-time information about the user's cursor
+  message SetCursor{
+    WsCursor cursor = 1;
+  }
+
+  message SetFocus {
+    int32 shell_id = 1;    // Unique identifier for a shell within the session.
+  }
+
+  // Create a new shell
+  message Create{
+    int32 x = 1;
+    int32 y = 2;
+  }
+
+  // Close a specific shell
+  message Close{
+    int32 shell = 1;    // Unique identifier for a shell within the session.
+  }
+
+  // Move a shell window to a new position and focus it
+  message Move{
+    int32 shell = 1;    // Unique identifier for a shell within the session.
+    optional WsWinsize size = 2;
+  }
+
+  // Add user data to a given shell
+  message Data {
+    int32 shell = 1;            // Unique identifier for a shell within the session.
+    bytes data = 2;    // Data received from the shell
+    int32 offset = 3;           // Offset from the beginning of the shell's data stream
+  }
+
+  // Subscribe to a shell, starting at a given chunk index
+  message Subscribe {
+    int32 shell = 1;          // Unique identifier for a shell within the session.
+    int32 chunk_num = 2;
+  }
+
+  // Send a ping to the server, for latency measurement
+  message Ping {
+    int64 timestamp = 1;
+  }
+
+  // Response from server message, after sending the initial hello message
+  message ServerResHello {
+    int32 user_id = 1;        // Unique identifier for a user within the session
+  }
+
+
+  oneof client_message {
+    SetName set_name = 1;
+    SetCursor set_cursor = 2;
+    SetFocus set_focus = 3;
+    Create create = 4;
+    Close close = 5;
+    Move move = 6;
+    Data data = 7;
+    Subscribe subscribe = 8;
+    Ping ping = 9;
+    ServerResHello server_res_hello = 10;
+  }
+}

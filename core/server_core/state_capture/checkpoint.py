@@ -1,12 +1,11 @@
-from typing import List, Tuple, Dict
+from typing import Dict
 import zstandard
 
 from core.comms_core.proto.identifiers import libs
 from core.comms_core.proto.identifiers.libs import Sid, Uid
 from core.comms_core.proto.terminalez import terminalez_pb2
 from core.server_core.state_manager.session import Session, Metadata, State
-from core.server_core.web import protocol
-from core.server_core.web.protocol import WsWinsize
+from core.server_core.web.proto.ws_protocol import web_protocol_pb2
 
 # Persist at most this many bytes of output in storage, per shell.
 SHELL_CHECKPOINT_BYTES = 1 << 15
@@ -62,14 +61,14 @@ async def checkpoint_capture(session: Session):
     """
     sid: Sid = await session.counter.get_sid()
     uid: Uid = await session.counter.get_uid()
-    shell_list: List[Tuple[libs.Sid, WsWinsize]] = session.source.get_latest()
+    shell_list: web_protocol_pb2.WsServer.Shells = session.source.get_latest()
 
     # Convert the list to a dictionary
-    win_sizes: Dict[libs.Sid, WsWinsize] = {sid: winsize for sid, winsize in shell_list}
+    win_sizes: Dict[libs.Sid, web_protocol_pb2.WsWinsize] = {sid: winsize for sid, winsize in shell_list.shells.items()}
 
     encrypted_session_data: terminalez_pb2.EncryptedSessionData = terminalez_pb2.EncryptedSessionData()
 
-    for shell_id, session_state in session.shells.read().items():
+    for shell_id, session_state in (await session.shells.read()).items():
         chunk_offset: int = session_state.chunk_offset
         byte_offset: int = session_state.byte_offset
 
@@ -82,7 +81,7 @@ async def checkpoint_capture(session: Session):
             byte_offset += chunk_size
             offset += 1
 
-        win_size: WsWinsize = win_sizes.get(shell_id, None)
+        win_size: web_protocol_pb2.WsWinsize = win_sizes.get(shell_id, None)
         if win_size is None:
             continue
         encrypted_shell_data: terminalez_pb2.EncryptedShellData = terminalez_pb2.EncryptedShellData()
@@ -120,7 +119,7 @@ async def checkpoint_restore(data: bytes, session: Session):
     shells: Dict[libs.Sid, State] = await session.shells.read_mut()
     await session.shells.acquire_write()
 
-    source_winsizes: List[Tuple[libs.Sid, protocol.WsWinsize]] = []
+    source_winsizes: web_protocol_pb2.WsServer.Shells = web_protocol_pb2.WsServer.Shells()
 
     for shell_id, encrypted_shell_data in encrypted_session_data.shells.items():
         shell_state = State()
@@ -130,16 +129,12 @@ async def checkpoint_restore(data: bytes, session: Session):
         shell_state.byte_offset = encrypted_shell_data.byte_offset
         shell_state.closed = encrypted_shell_data.closed
 
-        source_winsizes.append(
-            (Sid(value=shell_id),
-             WsWinsize(
-                 x=encrypted_shell_data.winsize_x,
-                 y=encrypted_shell_data.winsize_y,
-                 rows=encrypted_shell_data.winsize_rows,
-                 cols=encrypted_shell_data.winsize_cols)
-             )
-        )
-
+        ws_win_size: web_protocol_pb2.WsWinsize = web_protocol_pb2.WsWinsize(
+            x=encrypted_shell_data.winsize_x,
+            y=encrypted_shell_data.winsize_y,
+            rows=encrypted_shell_data.winsize_rows,
+            cols=encrypted_shell_data.winsize_cols)
+        source_winsizes.shells[shell_id].CopyFrom(ws_win_size)
 
         shells[Sid(value=shell_id)] = shell_state
 

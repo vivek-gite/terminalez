@@ -22,26 +22,26 @@ class Broadcast:
                 await subscriber.put(message)
             self._condition.notify_all()
 
-# Example usage
-async def main():
-    broadcaster = Broadcast()
-
-    async def producer():
-        for i in range(1, 6):
-            print(f"Producer sending: {i}")
-            await broadcaster.broadcast(i)
-            await asyncio.sleep(1)
-
-    async def consumer(name):
-        queue = await broadcaster.subscribe()
-        while True:
-            message = await queue.get()
-            print(f"{name} received: {message}")
-
-    await asyncio.gather(
-        producer(),
-        consumer("Receiver1"),
-        consumer("Receiver2"),
-    )
-
-asyncio.run(main())
+# # Example usage
+# async def main():
+#     broadcaster = Broadcast()
+#
+#     async def producer():
+#         for i in range(1, 6):
+#             print(f"Producer sending: {i}")
+#             await broadcaster.broadcast(i)
+#             await asyncio.sleep(1)
+#
+#     async def consumer(name):
+#         queue = await broadcaster.subscribe()
+#         while True:
+#             message = await queue.get()
+#             print(f"{name} received: {message}")
+#
+#     await asyncio.gather(
+#         producer(),
+#         consumer("Receiver1"),
+#         consumer("Receiver2"),
+#     )
+#
+# asyncio.run(main())

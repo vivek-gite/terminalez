@@ -31,7 +31,7 @@ message NewShell {
 // Message for sending data to the shell from the web client to the host machine
 message TerminalInput {
   uint32 shell_id = 1; // Unique identifier for the shell
-  string data = 2; // Data to be sent to the shell
+  bytes data = 2; // Data to be sent to the shell
   uint64 offset = 3; // Offset of the first byte for encryption.
 }
 

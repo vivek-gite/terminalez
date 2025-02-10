@@ -1,19 +1,18 @@
 import asyncio
 import time
-from typing import Callable
+from typing import Callable, AsyncGenerator
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
 from core.comms_core.proto.identifiers import libs
 from core.comms_core.utils.shutdown import Shutdown
-from core.server_core.web import protocol
 from core.comms_core.utils.watch import WatchChannel
 from core.comms_core.utils.broadcast import BroadcastChannel
 from core.comms_core.utils.rw_lock import ReadWriteLock
 from core.comms_core.utils.notify import Notify
 
 from core.comms_core.proto.terminalez import terminalez_pb2
-from core.server_core.web.protocol import WsWinsize, WsUser, WsServer
+from core.server_core.web.proto.ws_protocol import web_protocol_pb2
 
 # maximum number of bytes of terminal output to store for each shell
 SHELL_STORED_BYTES = 1 << 21  # 2 MiB
@@ -44,11 +43,11 @@ class Session:
 
     def __init__(self, metadata: Metadata = None):
         self.metadata: Metadata = metadata  # metadata of this session
-        self.users: ReadWriteLock[Dict[libs.Uid, protocol.WsUser]] = ReadWriteLock(
-            {})  # Metadata for currently connected users
+        self.users: ReadWriteLock[web_protocol_pb2.WsServer.Users] = ReadWriteLock(
+            web_protocol_pb2.WsServer.Users())  # Metadata for currently connected users
         self.counter = libs.IdCounter()  # Counter for generating unique identifiers
         self.source = WatchChannel(
-            [])  # Watch channel source for the ordered list of open shells and sizes which is of type `List[Tuple[libs.Sid, protocol.WsWinsize]]`
+            web_protocol_pb2.WsServer.Shells())  # Watch channel source for the ordered list of open shells and sizes which is of type `List[Tuple[libs.Sid, protocol.WsWinsize]]`
         self.broadcaster = BroadcastChannel(
             max_size=64)  # Broadcast channel for sending messages to all connected clients
         self.shells: ReadWriteLock[Dict[libs.Sid, State]] = ReadWriteLock(
@@ -61,7 +60,7 @@ class Session:
 
     async def send_latency_measurement(self, latency: int):
         """Send a latency measurement of the data from the host machine."""
-        await self.broadcaster.broadcast(WsServer.ShellLatency(latency=latency))
+        await self.broadcaster.broadcast(web_protocol_pb2.WsServer.ShellLatency(latency=latency))
 
 
     def last_accessed(self):
@@ -106,11 +105,12 @@ class Session:
         """Receive a notification every time the set of shells is changed."""
         return self.source.subscribe()
 
-    async def notification_wait(self, condition):
+    @staticmethod
+    async def notification_wait(condition):
         async with condition:
             await condition.wait()
 
-    async def subscribe_chunks(self, sid: libs.Sid, chunk_num: int):
+    async def subscribe_chunks(self, sid: libs.Sid, chunk_num: int) -> AsyncGenerator[Tuple[int, List[bytes]], None]:
         """
         Subscribe to chunks of data for a given shell ID (sid) starting from a specific chunk number (chunk_num).
 
@@ -163,8 +163,14 @@ class Session:
         shells[sid] = State()
         await self.shells.release_write()
 
-        shell_list: List[Tuple[libs.Sid, WsWinsize]] = self.source.get_latest()
-        shell_list.append((sid, WsWinsize(x=location[0], y=location[1])))
+        shell_list: web_protocol_pb2.WsServer.Shells = self.source.get_latest()
+        shell_list.shells.append(
+            web_protocol_pb2.WsServer.Shells.ShellEntry(
+                sid = sid.value,
+                size = web_protocol_pb2.WsWinsize(x=location[0],y=location[1])
+            )
+        )
+
         await self.source.send(shell_list)
 
         await self.sync_now()
@@ -212,21 +218,29 @@ class Session:
                 # Notify any waiting consumers that new data is available
                 await shell.notify.notify_all()
 
-    async def list_users(self) -> List[Tuple[libs.Uid, WsUser]]:
+    async def list_users(self) -> web_protocol_pb2.WsServer.Users:
         """List all users in the session."""
-        users: Dict[libs.Uid, WsUser] = await self.users.read_mut()
-        return list(users.items())
+        users_data: web_protocol_pb2.WsServer.Users = await self.users.read_mut()
+        return users_data
 
-    async def update_users(self, uid: libs.Uid, callback: Callable[[WsUser], None]):
+    async def update_users(self, uid: libs.Uid, callback: Callable[[web_protocol_pb2.WsUser], None]):
         """ Update a user in the session by ID, applying a callback to the user object and broadcasting the change."""
-        users: Dict[libs.Uid, WsUser] = await self.users.read_mut()
+        users_data: web_protocol_pb2.WsServer.Users = await self.users.read_mut()
         await self.users.acquire_write()
 
-        if uid in users:
-            user = users[uid]
-            callback(user)
+        if uid.value in users_data.users:
+            ws_user: web_protocol_pb2.WsUser = users_data.users.get(uid.value)
+            callback(ws_user)
 
-            await self.broadcaster.broadcast(WsServer.UserDiff(user_id=uid, user=user))
+            users_data.users[uid.value].CopyFrom(ws_user)
+
+            # Broadcast the details of the updated user to all clients
+            await self.broadcaster.broadcast(
+                web_protocol_pb2.WsServer.UserDiff(
+                    user_id=uid.value,
+                    user=ws_user,
+                    action=web_protocol_pb2.WsServer.UserDiff.ActionType.CHANGED))
+
             await self.users.release_write()
         else:
             raise KeyError(f"cannot update user with id={uid}, does not exist")
@@ -241,45 +255,51 @@ class Session:
         Raises:
             ValueError: If a user with the given UID already exists.
         """
-        users: Dict[libs.Uid, WsUser] = await self.users.read_mut()
-        match users.get(uid):
+        users_data: web_protocol_pb2.WsServer.Users = await self.users.read_mut()
+        match users_data.users.get(uid.value):
             case None:
                 await self.users.acquire_write()
-                new_user = WsUser(
-                    name=f"User {uid}",
-                    cursor=None,
-                    focus=None
+                new_user = web_protocol_pb2.WsUser(
+                    name=f"User {uid.value}"
                 )
-                users[uid] = new_user
-                await self.users.release_write()
-                await self.broadcaster.broadcast(WsServer.UserDiff(user_id=uid, user=new_user))
+                users_data.users[uid.value].CopyFrom(new_user)
 
+                await self.users.release_write()
+                await self.broadcaster.broadcast(
+                    web_protocol_pb2.WsServer.UserDiff(
+                        user_id=uid.value,
+                        user=new_user,
+                        action=web_protocol_pb2.WsServer.UserDiff.ActionType.JOINED))
             case _:
                 raise ValueError(f"cannot add user with id={uid}, already exists")
 
-    async def remove_user(self, uid: libs.Uid):
-        users: Dict[libs.Uid, WsUser] = await self.users.read_mut()
 
-        match users.get(uid):
+    async def remove_user(self, uid: libs.Uid):
+        users_data: web_protocol_pb2.WsServer.Users = await self.users.read_mut()
+
+        match users_data.users.get(uid.value):
             case None:
                 print(f"Invariant violation: removed user with id={uid} does not exist")
             case user:
                 await self.users.acquire_write()
                 try:
-                    del users[uid]
-                    await self.broadcaster.broadcast(WsServer.UserDiff(user_id=uid, user=user))
+                    del users_data.users[uid.value]
+                    await self.broadcaster.broadcast(
+                        web_protocol_pb2.WsServer.UserDiff(user_id=uid.value,
+                                                           user=user,
+                                                           action=web_protocol_pb2.WsServer.UserDiff.ActionType.LEFT))
                 finally:
                     await self.users.release_write()
 
 
 
-    async def move_shell(self, sid: libs.Sid, winsize: WsWinsize):
+    async def move_shell(self, sid: libs.Sid, winsize: web_protocol_pb2.WsWinsize):
         """
         Change the size of a terminal, notifying clients if necessary
 
         Args:
             sid (libs.Sid): The unique identifier of the shell to move.
-            winsize (WsWinsize): The new window size for the shell.
+            winsize (web_protocol_pb2.WsWinsize): The new window size for the shell.
 
         Raises:
             ValueError: If the shell with the given ID does not exist.
@@ -289,15 +309,11 @@ class Session:
         if sid not in shells:
             raise ValueError(f"Shell does not exists with id={sid}")
         await self.shells.acquire_write()
-        sources = self.source.get_latest()
-        idx = -1
-        for source in range(len(sources)):
-            if sources[source][0] == sid:
-                idx = source
-                break
-        if idx != -1:
-            sources[idx] = (sid, winsize)
-            await self.source.send(sources)
+        sources: web_protocol_pb2.WsServer.Shells = self.source.get_latest()
+
+        sources.shells[sid.value].CopyFrom(winsize)
+
+        await self.source.send(sources)
         await self.shells.release_write()
 
 

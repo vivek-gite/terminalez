@@ -35,9 +35,9 @@ class TerminalInput(_message.Message):
     DATA_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     shell_id: int
-    data: str
+    data: bytes
     offset: int
-    def __init__(self, shell_id: _Optional[int] = ..., data: _Optional[str] = ..., offset: _Optional[int] = ...) -> None: ...
+    def __init__(self, shell_id: _Optional[int] = ..., data: _Optional[bytes] = ..., offset: _Optional[int] = ...) -> None: ...
 
 class TerminalOutput(_message.Message):
     __slots__ = ("shell_id", "data", "seq_num")

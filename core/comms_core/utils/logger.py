@@ -42,7 +42,7 @@ def setup_logger():
     _logger.addHandler(queue_handler)
     _listener.start()
 
-    return _logger, listener
+    return _logger, _listener
 
 # Create a logger and listener
 logger, listener = setup_logger()

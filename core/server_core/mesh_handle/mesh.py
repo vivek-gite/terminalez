@@ -1,7 +1,7 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncIterable, AsyncGenerator, Any
+from typing import AsyncGenerator, Any
 
 import redis.asyncio as redis
 from redis.asyncio import Redis

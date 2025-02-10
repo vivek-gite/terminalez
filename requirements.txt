@@ -1,8 +1,10 @@
-grpcio==1.69.0
-grpcio-tools==1.69.0
-fastapi==0.115.6
+grpcio==1.70.0
+grpcio-tools==1.70.0
+fastapi==0.115.8
 pywin32==308
 hiredis==3.1.0
 redis==5.2.1
 ormsgpack==1.7.0
 zstandard==0.23.0
+protobuf==5.29.3
+uvicorn[standard]==0.34.0

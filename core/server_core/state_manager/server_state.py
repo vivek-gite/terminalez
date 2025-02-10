@@ -11,9 +11,10 @@ from core.server_core.state_manager.session import Session
 class ServerState:
     def __init__(self):
         # Fine-grained lock which lets us lock on a per-key basis instead of the entire state
+        # key: session_id -> which is made up of 10-random numbers
         self.store_fgMap: Dict[str, ReadWriteLock[Session]] = {}
 
-        #
+
         self.mesh = SessionMesh()
 
     def lookup(self, name: str) -> ReadWriteLock[Session] | None:
@@ -28,7 +29,11 @@ class ServerState:
         """
         return self.store_fgMap.get(name)
 
-    def insert(self, name: str, session: Session):
+    async def insert(self, name: str, session: Session):
+        if name in self.store_fgMap:
+            old_session: Session = await self.store_fgMap[name].read_mut()
+            await old_session.shutdown_session()
+
         asyncio.create_task(self.mesh.periodic_session_sync(name, session))
         self.store_fgMap[name] = ReadWriteLock(session)
 
@@ -70,7 +75,7 @@ class ServerState:
 
         session = Session()
         await checkpoint.checkpoint_restore(data=session_checkpoint, session=session)
-        self.insert(name, session)
+        await self.insert(name, session)
         await self.mesh.broadcast_transfer(name=name)
         return self.lookup(name)
 

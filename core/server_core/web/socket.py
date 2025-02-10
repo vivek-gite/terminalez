@@ -1,51 +1,78 @@
 import asyncio
-import queue
-from typing import Tuple, List
+import logging
+from fastapi import WebSocket, WebSocketDisconnect
 
-import ormsgpack
-from fastapi import WebSocket
-from starlette.websockets import WebSocketDisconnect
-
+from core.server_core.state_manager.server_state import ServerState
 from core.comms_core.proto.identifiers.libs import Sid
 from core.comms_core.utils.watch import WatchChannel
-
-from core.server_core.web.protocol import WsServer, WsClient, WsWinsize
 from core.server_core.state_manager.session import Session
-
-from core.comms_core.utils import common_tools
 from core.comms_core.proto.identifiers import libs
-
 from core.comms_core.proto.terminalez import terminalez_pb2
+from core.server_core.web.proto.ws_protocol import web_protocol_pb2
 
-async def send(websocket: WebSocket, msg: WsServer):
-    buf = ormsgpack.packb(msg)
+
+logger = logging.getLogger(__name__)
+
+
+async def send(websocket: WebSocket, message: web_protocol_pb2.WsServer | web_protocol_pb2.WsClient):
+    buf = message.SerializeToString()
     await websocket.send_bytes(buf)
 
-async def recv(websocket: WebSocket):
+async def recv(websocket: WebSocket) -> web_protocol_pb2.WsClient | None:
     while True:
         try:
             data = await websocket.receive_bytes()
-            return ormsgpack.unpackb(data)
-        except WebSocketDisconnect:
-            print("Client disconnected")
+            message = web_protocol_pb2.WsClient()
+            message.ParseFromString(data)
+            return message
+        except WebSocketDisconnect as e:
+            logger.error(f"Websocket receiver dropped, due to {e}")
             break
 
+async def get_session_ws(name: str, websocket: WebSocket, server_state: ServerState):
+    try:
+        session: Session = await server_state.frontend_connect(name=name).read()
+        try:
+            await handle_socket(websocket, session)
+        except Exception as e:
+            logger.exception(f"Websocket handler failed closing session {name} due to {e}")
+    except Exception as e:
+        logger.error(f"Session with name: {name} not found due to {e}")
+        error_response = {
+            "status": "error",
+            "code": 1011,
+            "reason": f"Session with name: {name} not found due to {e}"
+        }
+        await websocket.send(error_response)
+    finally:
+        await websocket.close()
 
 async def broadcast_handler(broadcast_stream: asyncio.Queue, websocket: WebSocket) -> None:
-    result: WsServer.UserDiff = await broadcast_stream.get()
+    broadcast_data: web_protocol_pb2.WsServer.UserDiff = await broadcast_stream.get()
+    result: web_protocol_pb2.WsServer = web_protocol_pb2.WsServer()
+    result.user_diff.CopyFrom(broadcast_data)
 
     broadcast_stream.task_done()
 
     await send(websocket, result)
 
+
 async def shell_stream_handler(shell_stream: WatchChannel.WatchReceiver, websocket: WebSocket) -> None:
-    result: List[Tuple[libs.Sid, WsWinsize]] = await shell_stream.recv()
-    await send(websocket, WsServer.Shells(shells=result))
+    result: web_protocol_pb2.WsServer.Shells = await shell_stream.recv()
 
-async def shell_chunks_handler( chunks_queue: asyncio.Queue[Tuple[libs.Sid, int, List[bytes]]], websocket: WebSocket) -> None:
-    sid, index, chunks = await chunks_queue.get()
-    await send(websocket, WsServer.Chunks(sid=sid, index=index, chunks=chunks))
+    await send(websocket=websocket,
+               message=web_protocol_pb2.WsServer(shells=result)
+               )
 
+
+async def shell_chunks_handler( chunks_queue: asyncio.Queue[web_protocol_pb2.WsServer.Chunks], websocket: WebSocket) -> None:
+    try:
+        chunk_data: web_protocol_pb2.WsServer.Chunks = await chunks_queue.get()
+        await send(websocket=websocket,
+                   message=web_protocol_pb2.WsServer(chunks=chunk_data)
+                   )
+    except Exception as e:
+        chunks_queue.shutdown(immediate=True)
 
 
 
@@ -56,16 +83,22 @@ async def handle_socket(websocket: WebSocket, session: Session):
     await session.sync_now()
 
     # Send the initial hello message
-    await send(websocket, WsServer.Hello(user_id=user_id, metadata=metadata.name))
+    await send(websocket=websocket,
+               message=web_protocol_pb2.WsServer(
+                   hello=web_protocol_pb2.WsServer.Hello(
+                       user_id=user_id.value,
+                       metadata=metadata.name)))
 
-    received_data = await recv(websocket)
+    received_data: web_protocol_pb2.WsClient = await recv(websocket)
 
-    class_type = common_tools.validate(received_data, WsClient)
-    match class_type:
-        case WsClient.ServerResHello:
+    match received_data.WhichOneof("client_message"):
+        case "server_res_hello":
             pass
         case _:
-            await send(websocket, WsServer.Error(message = "Invalid message type"))
+            await send(websocket=websocket,
+                       message=web_protocol_pb2.WsServer(
+                           error=web_protocol_pb2.WsServer.Error(
+                               message="Invalid message type")))
             return
 
     # TODO: Implement the removing the user logic
@@ -73,13 +106,15 @@ async def handle_socket(websocket: WebSocket, session: Session):
 
     broadcast_stream: asyncio.Queue = await session.subscribe_broadcast()
 
-    users = await session.list_users()
-    await send(websocket, WsServer.Users(users = users))
+    users: web_protocol_pb2.WsServer.Users = await session.list_users()
+
+    await send(websocket=websocket,
+               message= web_protocol_pb2.WsServer(users=users))
 
     subscribed = set()
 
     # Queue to store the chunks of format (sid, seq_num, chunks)
-    chunks_queue: asyncio.Queue[Tuple[libs.Sid, int, List[bytes]]] = asyncio.Queue()
+    chunks_queue: asyncio.Queue[web_protocol_pb2.WsServer.Chunks] = asyncio.Queue()
 
     shells_stream = session.subscribe_shells()
     while True:
@@ -94,84 +129,105 @@ async def handle_socket(websocket: WebSocket, session: Session):
 
         result = done.pop().result()
 
-
         match result:
             case None:
                 continue
             case "terminated":
                 break
 
+        ws_client_message: web_protocol_pb2.WsClient = result
 
-        match common_tools.validate(result, WsClient):
-            case WsClient.SetName:
+        match ws_client_message.WhichOneof("client_message"):
+            case "set_name":
+                recv_data: web_protocol_pb2.WsClient.SetName = ws_client_message.set_name
                 if result.name!="":
-                    await session.update_users(user_id, lambda user: setattr(user, "name", result.name))
+                    await session.update_users(user_id, lambda user: setattr(user, "name", recv_data.name))
 
-            case WsClient.SetCursor:
-                await session.update_users(user_id, lambda user: setattr(user, "cursor", result.cursor))
+            case "set_cursor":
+                recv_data: web_protocol_pb2.WsClient.SetCursor = ws_client_message.set_cursor
+                await session.update_users(user_id, lambda user: setattr(user, "cursor", recv_data.cursor))
 
-            case WsClient.SetFocus:
-                await session.update_users(user_id, lambda user: setattr(user, "focus", result.focus))
+            case "set_focus":
+                recv_data: web_protocol_pb2.WsClient.SetFocus = ws_client_message.set_focus
+                await session.update_users(user_id, lambda user: setattr(user, "focus", recv_data.shell_id))
 
-            case WsClient.Create:
+            case "create":
+                recv_data: web_protocol_pb2.WsClient.Create = ws_client_message.create
                 sid: Sid = await session.counter.incr_sid()
                 asyncio.create_task(session.sync_now())
 
-                new_shell = terminalez_pb2.NewShell( shell_id = sid.value, x=result.x, y=result.y)
+                new_shell = terminalez_pb2.NewShell( shell_id = sid.value, x=recv_data.x, y=recv_data.y)
 
                 await session.buffer_message.put(terminalez_pb2.ServerUpdate(create_shell=new_shell))
 
-            case WsClient.Close:
+            case "close":
                 """
                 Close a specific shell.
                 result is a WsClient.Close object
                 schema: WsClient.Close(shell: libs.Sid)
                 """
-                await session.buffer_message.put(terminalez_pb2.ServerUpdate(close_shell=result.shell.value))
+                recv_data: web_protocol_pb2.WsClient.Close = ws_client_message.close
+                await session.buffer_message.put(terminalez_pb2.ServerUpdate(close_shell=recv_data.shell))
 
-            case WsClient.Move:
-
+            case "move":
                 try:
-                    wsclient_move = WsClient.Move(**result)
-                    await session.move_shell(wsclient_move.shell, wsclient_move.size)
+                    recv_data: web_protocol_pb2.WsClient.Move = ws_client_message.move
+                    await session.move_shell(
+                        sid=libs.Sid(value=recv_data.shell),
+                        winsize=recv_data.size)
                 except ValueError as e:
-                    await send(websocket, WsServer.Error(message=str(e)))
+                    await send(websocket=websocket,
+                               message=web_protocol_pb2.WsServer(
+                                   error=web_protocol_pb2.WsServer.Error(message=str(e))
+                               ))
                     continue
 
-                terminal_size = terminalez_pb2.TerminalSize(shell_id=wsclient_move.shell.value,
-                                                            rows=wsclient_move.size.rows,
-                                                            cols=wsclient_move.size.cols)
+                terminal_size = terminalez_pb2.TerminalSize(shell_id=recv_data.shell,
+                                                            rows=recv_data.size.rows,
+                                                            cols=recv_data.size.cols)
                 await session.buffer_message.put(terminal_size)
 
-            case WsClient.Data:
+            case "data":
+                recv_data: web_protocol_pb2.WsClient.Data = ws_client_message.data
+
                 terminal_input = terminalez_pb2.TerminalInput(
-                    shell_id=result.shell.value,
-                    data=result.data,
-                    offset=result.offset
+                    shell_id=recv_data.shell,
+                    data=recv_data.data,
+                    offset=recv_data.offset
                 )
 
                 await session.buffer_message.put(terminalez_pb2.ServerUpdate(terminal_input=terminal_input))
 
 
-            case WsClient.Subscribe:
-                if result.shell.value not in subscribed:
-                    subscribed.add(result.shell.value)
+            case "subscribe":
+                recv_data: web_protocol_pb2.WsClient.Subscribe = ws_client_message.subscribe
+
+                if recv_data.shell not in subscribed:
+                    subscribed.add(recv_data.shell)
 
                     async def send_chunks(shell_id: libs.Sid):
                         stream = session.subscribe_chunks(
                             sid = shell_id,
-                            chunk_num = result.chunk_num
+                            chunk_num = recv_data.chunk_num
                         )
 
-                        # TODO Enhancement: So if the receiver is dropped perm. then raise an exception and
+                        #  So if the receiver is dropped perm. then raise an exception and
                         #  break the loop as the receiver can be only single consumer and there can be multiple producers
                         async for seq_num, chunks in stream:
-                            chunks_queue.shutdown()
-                            await chunks_queue.put((shell_id, seq_num, chunks))
+                            chunk_data: web_protocol_pb2.WsServer.Chunks = (
+                                web_protocol_pb2.WsServer.Chunks(
+                                    sid=shell_id.value,
+                                    index=seq_num,
+                                    chunks=chunks))
+                            await chunks_queue.put(chunk_data)
 
                     asyncio.create_task(send_chunks(
-                        libs.Sid(value=result.shell.value)
+                        libs.Sid(value=recv_data.shell)
                     ))
 
-            case WsClient.Ping:
-                await send(websocket, WsServer.Pong(timestamp=result.timestamp))
+            case "ping":
+                recv_data: web_protocol_pb2.WsClient.Ping = ws_client_message.ping
+                await send(websocket=websocket,
+                           message=web_protocol_pb2.WsServer(
+                               pong=web_protocol_pb2.WsServer.Pong(
+                                   timestamp=recv_data.timestamp)))

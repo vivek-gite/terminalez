@@ -5,7 +5,7 @@ from core.comms_core.utils.rw_lock import ReadWriteLock
 
 class Shutdown:
     def __init__(self):
-        self._shutdown: ReadWriteLock(bool)  = ReadWriteLock(False)
+        self._shutdown: ReadWriteLock[bool] = ReadWriteLock(False)
         self.notify: asyncio.Condition = asyncio.Condition()
 
     async def shutdown(self) -> None:

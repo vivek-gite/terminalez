@@ -3,9 +3,9 @@
 import grpc
 import warnings
 
-import terminalez_pb2 as terminalez__pb2
+import core.comms_core.proto.terminalez.terminalez_pb2 as terminalez__pb2
 
-GRPC_GENERATED_VERSION = '1.69.0'
+GRPC_GENERATED_VERSION = '1.70.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
