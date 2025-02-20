@@ -59,7 +59,7 @@ class Runner:
         return terminals[self.usr_terminal]
 
     @staticmethod
-    async def start_process_and_handle_io(terminal: Terminal) -> None:
+    def start_process_and_handle_io(terminal: Terminal) -> None:
         # Spawn a new shell process
         terminal.spawn_new_shell()
 
@@ -91,8 +91,13 @@ class Runner:
 
         # Create a new terminal process
         terminal = Terminal(terminal_path, self.write_pipe)
-        await self.start_process_and_handle_io(terminal)
+        console_thread = threading.Thread(target=self.start_process_and_handle_io,args=(terminal,))
+        console_thread.daemon = True
+        console_thread.start()
 
     async def run_command(self, command: str):
         """Runs a command in the selected terminal."""
         self.write_pipe.put(command)
+
+    def get_write_pipe(self):
+        return self.write_pipe

@@ -42,8 +42,10 @@ class Terminal:
                 if self.write_queue.empty():
                     continue
 
-                user_input = self.write_queue.get() + "\n"
+                user_input = self.write_queue.get()
                 win32file.WriteFile(handle, user_input.encode())
+            except queue.Empty:
+                continue
             except BrokenPipeError:
                 break
             except EOFError:  # Handle Ctrl+D
