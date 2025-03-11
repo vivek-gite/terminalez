@@ -14,7 +14,8 @@ service TerminalEz {
 }
 
 message InitialConnectionRequest {
-  string m_name = 1;        // Machine Name of the host. format: "username@hostname"
+  string m_name = 1;                        // Machine Name of the host. format: "username@hostname"
+  repeated string available_shells = 2;     // List of available shells.
 }
 
 message InitialConnectionResponse {
@@ -26,6 +27,7 @@ message NewShell {
   uint32 shell_id = 1; // Unique identifier for the shell
   int32 x = 2;          // X position of the shell
   int32 y = 3;          // Y position of the shell
+  string shell_info = 4; // Information about the shell, ex: {shell_name};{shell_path}
 }
 
 // Message for sending data to the shell from the web client to the host machine

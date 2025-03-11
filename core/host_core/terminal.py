@@ -9,12 +9,13 @@ import queue
 import win32security
 
 class Terminal:
-    def __init__(self, shell_path: str, write_queue: queue.Queue):
+    def __init__(self, shell_path: str, write_queue: queue.Queue, read_queue: queue.Queue):
         self.shell_path = shell_path
         self.read_stdout = None
         self.write_stdin = None
         self.process_information = None
         self.write_queue = write_queue
+        self.read_queue = read_queue
 
     def read_output(self, handle, encoding):
         """Continuously reads output from the child process."""
@@ -25,7 +26,8 @@ class Terminal:
                     break  # Pipe closed
                 try:
                     decoded_data = data.decode(encoding)
-                    print(decoded_data, end='', flush=True)
+                    # print(decoded_data, end='', flush=True)
+                    self.read_queue.put_nowait(decoded_data)
                 except UnicodeDecodeError:
                     print(f"Warning: Could not decode output using {encoding}. Raw bytes: {data!r}")
             except win32api.error as e:
@@ -42,7 +44,8 @@ class Terminal:
                 if self.write_queue.empty():
                     continue
 
-                user_input = self.write_queue.get()
+                user_input = self.write_queue.get() + '\n'  # Add newline for command execution
+                self.write_queue.task_done()
                 win32file.WriteFile(handle, user_input.encode())
             except queue.Empty:
                 continue

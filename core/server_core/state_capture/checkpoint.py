@@ -16,6 +16,7 @@ MAX_CHECKPOINT_SIZE = 1 << 22 # 4 MiB
 compressor = zstandard.ZstdCompressor(level=3)
 decompressor = zstandard.ZstdDecompressor(max_window_size=MAX_CHECKPOINT_SIZE)
 
+# TODO: make use of this compress data
 def compress_data(data: bytes) -> bytes:
     """
     Compresses the given data using the zstandard compression algorithm.
@@ -116,7 +117,7 @@ async def checkpoint_restore(data: bytes, session: Session):
 
     session.metadata = Metadata(name=encrypted_session_data.name)
 
-    shells: Dict[libs.Sid, State] = await session.shells.read_mut()
+    shells: Dict[libs.Sid, State] = await session.shells.read()
     await session.shells.acquire_write()
 
     source_winsizes: web_protocol_pb2.WsServer.Shells = web_protocol_pb2.WsServer.Shells()

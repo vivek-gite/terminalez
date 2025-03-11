@@ -53,6 +53,7 @@ class GrpcServer(terminalez_pb2_grpc.TerminalEzServicer):
             if session is not None:
                 raise Exception("Session already exists")
 
+            # TODO: handle the list of available shells from the request object
             metadata: Metadata = Metadata(request.m_name)
             await self.server_state.insert(random_name, Session(metadata=metadata))
             url = f"/session/{random_name}"
@@ -98,7 +99,7 @@ class GrpcServer(terminalez_pb2_grpc.TerminalEzServicer):
             result_queue = asyncio.Queue()
 
             # Get the session from the read lock
-            session: Session = await session_rw_lock.read_mut()
+            session: Session = await session_rw_lock.read()
 
             # Start the stream handler in the background
             try:
@@ -320,6 +321,9 @@ async def handle_update(result_queue: asyncio.Queue, session: Session, update: t
 
         case "error":
             logger.error(f"Error: {update.error}")
+        case _:
+            # Heartbeat message, ignored
+            pass
 
 
 def get_timestamp() -> int:

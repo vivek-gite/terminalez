@@ -65,7 +65,7 @@ class IdCounter:
         Returns:
             Sid: The new unique identifier for the shell.
         """
-        val = await self.__next_sid.read_mut()
+        val = await self.__next_sid.read()
         await self.__next_sid.acquire_write()
         sid = Sid(value=val)
         val+=1
@@ -84,7 +84,7 @@ class IdCounter:
         Returns:
             Uid: The new unique identifier for the user.
         """
-        val = await self.__next_uid.read_mut()
+        val = await self.__next_uid.read()
         await self.__next_uid.acquire_write()
         uid = Uid(value=val)
         val+=1

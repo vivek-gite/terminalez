@@ -6,10 +6,12 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class InitialConnectionRequest(_message.Message):
-    __slots__ = ("m_name",)
+    __slots__ = ("m_name", "available_shells")
     M_NAME_FIELD_NUMBER: _ClassVar[int]
+    AVAILABLE_SHELLS_FIELD_NUMBER: _ClassVar[int]
     m_name: str
-    def __init__(self, m_name: _Optional[str] = ...) -> None: ...
+    available_shells: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, m_name: _Optional[str] = ..., available_shells: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class InitialConnectionResponse(_message.Message):
     __slots__ = ("session_id", "url")
@@ -20,14 +22,16 @@ class InitialConnectionResponse(_message.Message):
     def __init__(self, session_id: _Optional[str] = ..., url: _Optional[str] = ...) -> None: ...
 
 class NewShell(_message.Message):
-    __slots__ = ("shell_id", "x", "y")
+    __slots__ = ("shell_id", "x", "y", "shell_info")
     SHELL_ID_FIELD_NUMBER: _ClassVar[int]
     X_FIELD_NUMBER: _ClassVar[int]
     Y_FIELD_NUMBER: _ClassVar[int]
+    SHELL_INFO_FIELD_NUMBER: _ClassVar[int]
     shell_id: int
     x: int
     y: int
-    def __init__(self, shell_id: _Optional[int] = ..., x: _Optional[int] = ..., y: _Optional[int] = ...) -> None: ...
+    shell_info: str
+    def __init__(self, shell_id: _Optional[int] = ..., x: _Optional[int] = ..., y: _Optional[int] = ..., shell_info: _Optional[str] = ...) -> None: ...
 
 class TerminalInput(_message.Message):
     __slots__ = ("shell_id", "data", "offset")

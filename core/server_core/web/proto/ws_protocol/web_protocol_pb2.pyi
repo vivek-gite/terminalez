@@ -146,12 +146,14 @@ class WsClient(_message.Message):
         shell_id: int
         def __init__(self, shell_id: _Optional[int] = ...) -> None: ...
     class Create(_message.Message):
-        __slots__ = ("x", "y")
+        __slots__ = ("x", "y", "shell_info")
         X_FIELD_NUMBER: _ClassVar[int]
         Y_FIELD_NUMBER: _ClassVar[int]
+        SHELL_INFO_FIELD_NUMBER: _ClassVar[int]
         x: int
         y: int
-        def __init__(self, x: _Optional[int] = ..., y: _Optional[int] = ...) -> None: ...
+        shell_info: str
+        def __init__(self, x: _Optional[int] = ..., y: _Optional[int] = ..., shell_info: _Optional[str] = ...) -> None: ...
     class Close(_message.Message):
         __slots__ = ("shell",)
         SHELL_FIELD_NUMBER: _ClassVar[int]

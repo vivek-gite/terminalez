@@ -115,6 +115,7 @@ message WsClient{
   message Create{
     int32 x = 1;
     int32 y = 2;
+    string shell_info = 3; // Information about the shell, ex: {shell_name};{shell_path}
   }
 
   // Close a specific shell

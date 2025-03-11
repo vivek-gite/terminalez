@@ -8,3 +8,4 @@ ormsgpack==1.7.0
 zstandard==0.23.0
 protobuf==5.29.3
 uvicorn[standard]==0.34.0
+grpcio-status==1.70.0

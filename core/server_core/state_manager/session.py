@@ -22,7 +22,7 @@ SHELL_STORED_BYTES = 1 << 21  # 2 MiB
 class Metadata:
     """Static metadata for this session."""
     name: str # The name of the host computer running the session. Format: "username@hostname"
-
+    # available_shells: List[str] # The available shells on the host computer.
 
 class State:
     """ Internal State of a single shell within a session."""
@@ -156,7 +156,7 @@ class Session:
 
     async def add_shell(self, sid: libs.Sid, location: (int, int)):
         """Add a new shell to the session."""
-        shells: Dict[libs.Sid, State] = await self.shells.read_mut()
+        shells: Dict[libs.Sid, State] = await self.shells.read()
         if sid in shells:
             raise ValueError(f"Shell already exists with id={sid}")
         await self.shells.acquire_write()
@@ -164,12 +164,10 @@ class Session:
         await self.shells.release_write()
 
         shell_list: web_protocol_pb2.WsServer.Shells = self.source.get_latest()
-        shell_list.shells.append(
-            web_protocol_pb2.WsServer.Shells.ShellEntry(
-                sid = sid.value,
-                size = web_protocol_pb2.WsWinsize(x=location[0],y=location[1])
-            )
-        )
+
+        # TODO: Once have a better understanding of the shell_list, update the below code
+        # As in the sshx->session.rs->add_shell-> we are only sending the notification of the new shell not the whole shell_list
+        shell_list.shells[sid.value].CopyFrom(web_protocol_pb2.WsWinsize(x=location[0], y=location[1]))
 
         await self.source.send(shell_list)
 
@@ -177,7 +175,7 @@ class Session:
 
     async def close_shell(self, sid: libs.Sid):
         """ Close a shell in the session."""
-        shells: Dict[libs.Sid, State] = await self.shells.read_mut()
+        shells: Dict[libs.Sid, State] = await self.shells.read()
         match shells.get(sid):
             case None:
                 raise KeyError(f"cannot close shell with id={sid}, does not exist")
@@ -193,7 +191,7 @@ class Session:
         await self.sync_now()
 
     async def add_data(self, sid: libs.Sid, data: bytes, seq: int):
-        shells: Dict[libs.Sid, State] = await self.shells.read_mut()
+        shells: Dict[libs.Sid, State] = await self.shells.read()
         shell: State = shells.get(sid)
 
         async with shell.state_lock:
@@ -220,12 +218,12 @@ class Session:
 
     async def list_users(self) -> web_protocol_pb2.WsServer.Users:
         """List all users in the session."""
-        users_data: web_protocol_pb2.WsServer.Users = await self.users.read_mut()
+        users_data: web_protocol_pb2.WsServer.Users = await self.users.read()
         return users_data
 
     async def update_users(self, uid: libs.Uid, callback: Callable[[web_protocol_pb2.WsUser], None]):
         """ Update a user in the session by ID, applying a callback to the user object and broadcasting the change."""
-        users_data: web_protocol_pb2.WsServer.Users = await self.users.read_mut()
+        users_data: web_protocol_pb2.WsServer.Users = await self.users.read()
         await self.users.acquire_write()
 
         if uid.value in users_data.users:
@@ -255,7 +253,7 @@ class Session:
         Raises:
             ValueError: If a user with the given UID already exists.
         """
-        users_data: web_protocol_pb2.WsServer.Users = await self.users.read_mut()
+        users_data: web_protocol_pb2.WsServer.Users = await self.users.read()
         match users_data.users.get(uid.value):
             case None:
                 await self.users.acquire_write()
@@ -275,7 +273,7 @@ class Session:
 
 
     async def remove_user(self, uid: libs.Uid):
-        users_data: web_protocol_pb2.WsServer.Users = await self.users.read_mut()
+        users_data: web_protocol_pb2.WsServer.Users = await self.users.read()
 
         match users_data.users.get(uid.value):
             case None:
@@ -305,7 +303,7 @@ class Session:
             ValueError: If the shell with the given ID does not exist.
         """
 
-        shells: Dict[libs.Sid, State] = await self.shells.read_mut()
+        shells: Dict[libs.Sid, State] = await self.shells.read()
         if sid not in shells:
             raise ValueError(f"Shell does not exists with id={sid}")
         await self.shells.acquire_write()

@@ -12,9 +12,10 @@ class Runner:
     def __init__(self):
         self.usr_terminal: str = ""
         self.write_pipe: queue.Queue = queue.Queue()
+        self.read_pipe: queue.Queue = queue.Queue()
 
     @staticmethod
-    async def list_available_terminals() -> dict:
+    def list_available_terminals() -> dict:
         """Lists common terminals available on Windows with their paths."""
 
         terminals = {}
@@ -35,9 +36,9 @@ class Runner:
 
         return terminals
 
-    async def select_terminal(self) -> str:
+    def select_terminal(self) -> str:
         """ Lists available terminals and prompts the user to select one. """
-        terminals = await self.list_available_terminals()
+        terminals = self.list_available_terminals()
         print("Available terminals:")
         for index, name in enumerate(terminals.keys()):
             print(f"{index + 1}. {name}")
@@ -50,7 +51,7 @@ class Runner:
                 choice = int(input("Invalid choice. Please enter a valid number: ")) - 1
         except ValueError:
             print("Invalid choice. Please enter a valid number.")
-            await self.select_terminal()
+            self.select_terminal()
 
         # Storing the selected terminal name
         self.usr_terminal = list(terminals.keys())[choice]
@@ -84,20 +85,24 @@ class Runner:
         # Clean up handles
         terminal.shutdown_gracefully()
 
-    async def create_terminal(self) -> None:
+    def create_terminal(self, terminal_path: str="") -> None:
         """Creates a new terminal process."""
-        terminal_path = await self.select_terminal()
+        terminal_path = self.select_terminal() if terminal_path!="" else terminal_path
         print(f"Opening terminal: {terminal_path}")
 
         # Create a new terminal process
-        terminal = Terminal(terminal_path, self.write_pipe)
+        terminal = Terminal(terminal_path, self.write_pipe, self.read_pipe)
         console_thread = threading.Thread(target=self.start_process_and_handle_io,args=(terminal,))
         console_thread.daemon = True
         console_thread.start()
 
-    async def run_command(self, command: str):
+
+    def run_command(self, command: str):
         """Runs a command in the selected terminal."""
-        self.write_pipe.put(command)
+        self.write_pipe.put_nowait(command)
+
+    def get_read_pipe(self):
+        return self.read_pipe
 
     def get_write_pipe(self):
         return self.write_pipe

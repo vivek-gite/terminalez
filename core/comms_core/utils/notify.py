@@ -15,7 +15,7 @@ class Notify:
 
     async def wait(self):
         async with self._condition:
-            while not self.__permit.read():
+            while not (await self.__permit.read()):
                 await self._condition.wait()
             await self.__permit.write(False)
 

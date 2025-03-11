@@ -31,7 +31,7 @@ class ServerState:
 
     async def insert(self, name: str, session: Session):
         if name in self.store_fgMap:
-            old_session: Session = await self.store_fgMap[name].read_mut()
+            old_session: Session = await self.store_fgMap[name].read()
             await old_session.shutdown_session()
 
         asyncio.create_task(self.mesh.periodic_session_sync(name, session))
@@ -39,7 +39,7 @@ class ServerState:
 
     async def remove(self, name: str):
         session: ReadWriteLock = self.store_fgMap.pop(name)
-        old_session: Session= await session.read_mut()
+        old_session: Session= await session.read()
         await old_session.shutdown_session()
 
 

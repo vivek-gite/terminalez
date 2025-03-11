@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10terminalez.proto\x12\nterminalEz\"*\n\x18InitialConnectionRequest\x12\x0e\n\x06m_name\x18\x01 \x01(\t\"<\n\x19InitialConnectionResponse\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x0b\n\x03url\x18\x02 \x01(\t\"2\n\x08NewShell\x12\x10\n\x08shell_id\x18\x01 \x01(\r\x12\t\n\x01x\x18\x02 \x01(\x05\x12\t\n\x01y\x18\x03 \x01(\x05\"?\n\rTerminalInput\x12\x10\n\x08shell_id\x18\x01 \x01(\r\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\x12\x0e\n\x06offset\x18\x03 \x01(\x04\"A\n\x0eTerminalOutput\x12\x10\n\x08shell_id\x18\x01 \x01(\r\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\x12\x0f\n\x07seq_num\x18\x03 \x01(\x03\"p\n\x0fSequenceNumbers\x12\x31\n\x03map\x18\x01 \x03(\x0b\x32$.terminalEz.SequenceNumbers.MapEntry\x1a*\n\x08MapEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\r\n\x05value\x18\x02 \x01(\x04:\x02\x38\x01\"\xca\x01\n\x0c\x43lientUpdate\x12\x14\n\nsession_id\x18\x01 \x01(\tH\x00\x12*\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x1a.terminalEz.TerminalOutputH\x00\x12-\n\rcreated_shell\x18\x03 \x01(\x0b\x32\x14.terminalEz.NewShellH\x00\x12\x16\n\x0c\x63losed_shell\x18\x04 \x01(\rH\x00\x12\x0e\n\x04pong\x18\x05 \x01(\x03H\x00\x12\x0f\n\x05\x65rror\x18\x06 \x01(\tH\x00\x42\x10\n\x0e\x63lient_message\"\x94\x02\n\x0cServerUpdate\x12\x33\n\x0eterminal_input\x18\x01 \x01(\x0b\x32\x19.terminalEz.TerminalInputH\x00\x12,\n\x0c\x63reate_shell\x18\x02 \x01(\x0b\x32\x14.terminalEz.NewShellH\x00\x12\x15\n\x0b\x63lose_shell\x18\x03 \x01(\rH\x00\x12+\n\x04sync\x18\x04 \x01(\x0b\x32\x1b.terminalEz.SequenceNumbersH\x00\x12*\n\x06resize\x18\x05 \x01(\x0b\x32\x18.terminalEz.TerminalSizeH\x00\x12\x0e\n\x04ping\x18\x06 \x01(\x03H\x00\x12\x0f\n\x05\x65rror\x18\x07 \x01(\tH\x00\x42\x10\n\x0eserver_message\"<\n\x0cTerminalSize\x12\x10\n\x08shell_id\x18\x01 \x01(\r\x12\x0c\n\x04rows\x18\x02 \x01(\r\x12\x0c\n\x04\x63ols\x18\x03 \x01(\r\"\"\n\x0c\x43loseRequest\x12\x12\n\nsession_id\x18\x01 \x01(\t\" \n\rCloseResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\xc0\x01\n\x12\x45ncryptedShellData\x12\x0f\n\x07seq_num\x18\x01 \x01(\x04\x12\x0c\n\x04\x64\x61ta\x18\x02 \x03(\x0c\x12\x14\n\x0c\x63hunk_offset\x18\x03 \x01(\x04\x12\x13\n\x0b\x62yte_offset\x18\x04 \x01(\x04\x12\x0e\n\x06\x63losed\x18\x05 \x01(\x08\x12\x11\n\twinsize_x\x18\x06 \x01(\x05\x12\x11\n\twinsize_y\x18\x07 \x01(\x05\x12\x14\n\x0cwinsize_rows\x18\x08 \x01(\r\x12\x14\n\x0cwinsize_cols\x18\t \x01(\r\"\xd5\x01\n\x14\x45ncryptedSessionData\x12<\n\x06shells\x18\x01 \x03(\x0b\x32,.terminalEz.EncryptedSessionData.ShellsEntry\x12\x10\n\x08next_sid\x18\x02 \x01(\r\x12\x10\n\x08next_uid\x18\x03 \x01(\r\x12\x0c\n\x04name\x18\x04 \x01(\t\x1aM\n\x0bShellsEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12-\n\x05value\x18\x02 \x01(\x0b\x32\x1e.terminalEz.EncryptedShellData:\x02\x38\x01\x32\xf0\x01\n\nTerminalEz\x12\x61\n\x12InitiateConnection\x12$.terminalEz.InitialConnectionRequest\x1a%.terminalEz.InitialConnectionResponse\x12\x41\n\x07\x43hannel\x12\x18.terminalEz.ClientUpdate\x1a\x18.terminalEz.ServerUpdate(\x01\x30\x01\x12<\n\x05\x43lose\x12\x18.terminalEz.CloseRequest\x1a\x19.terminalEz.CloseResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10terminalez.proto\x12\nterminalEz\"D\n\x18InitialConnectionRequest\x12\x0e\n\x06m_name\x18\x01 \x01(\t\x12\x18\n\x10\x61vailable_shells\x18\x02 \x03(\t\"<\n\x19InitialConnectionResponse\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x0b\n\x03url\x18\x02 \x01(\t\"F\n\x08NewShell\x12\x10\n\x08shell_id\x18\x01 \x01(\r\x12\t\n\x01x\x18\x02 \x01(\x05\x12\t\n\x01y\x18\x03 \x01(\x05\x12\x12\n\nshell_info\x18\x04 \x01(\t\"?\n\rTerminalInput\x12\x10\n\x08shell_id\x18\x01 \x01(\r\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\x12\x0e\n\x06offset\x18\x03 \x01(\x04\"A\n\x0eTerminalOutput\x12\x10\n\x08shell_id\x18\x01 \x01(\r\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\x12\x0f\n\x07seq_num\x18\x03 \x01(\x03\"p\n\x0fSequenceNumbers\x12\x31\n\x03map\x18\x01 \x03(\x0b\x32$.terminalEz.SequenceNumbers.MapEntry\x1a*\n\x08MapEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\r\n\x05value\x18\x02 \x01(\x04:\x02\x38\x01\"\xca\x01\n\x0c\x43lientUpdate\x12\x14\n\nsession_id\x18\x01 \x01(\tH\x00\x12*\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x1a.terminalEz.TerminalOutputH\x00\x12-\n\rcreated_shell\x18\x03 \x01(\x0b\x32\x14.terminalEz.NewShellH\x00\x12\x16\n\x0c\x63losed_shell\x18\x04 \x01(\rH\x00\x12\x0e\n\x04pong\x18\x05 \x01(\x03H\x00\x12\x0f\n\x05\x65rror\x18\x06 \x01(\tH\x00\x42\x10\n\x0e\x63lient_message\"\x94\x02\n\x0cServerUpdate\x12\x33\n\x0eterminal_input\x18\x01 \x01(\x0b\x32\x19.terminalEz.TerminalInputH\x00\x12,\n\x0c\x63reate_shell\x18\x02 \x01(\x0b\x32\x14.terminalEz.NewShellH\x00\x12\x15\n\x0b\x63lose_shell\x18\x03 \x01(\rH\x00\x12+\n\x04sync\x18\x04 \x01(\x0b\x32\x1b.terminalEz.SequenceNumbersH\x00\x12*\n\x06resize\x18\x05 \x01(\x0b\x32\x18.terminalEz.TerminalSizeH\x00\x12\x0e\n\x04ping\x18\x06 \x01(\x03H\x00\x12\x0f\n\x05\x65rror\x18\x07 \x01(\tH\x00\x42\x10\n\x0eserver_message\"<\n\x0cTerminalSize\x12\x10\n\x08shell_id\x18\x01 \x01(\r\x12\x0c\n\x04rows\x18\x02 \x01(\r\x12\x0c\n\x04\x63ols\x18\x03 \x01(\r\"\"\n\x0c\x43loseRequest\x12\x12\n\nsession_id\x18\x01 \x01(\t\" \n\rCloseResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\xc0\x01\n\x12\x45ncryptedShellData\x12\x0f\n\x07seq_num\x18\x01 \x01(\x04\x12\x0c\n\x04\x64\x61ta\x18\x02 \x03(\x0c\x12\x14\n\x0c\x63hunk_offset\x18\x03 \x01(\x04\x12\x13\n\x0b\x62yte_offset\x18\x04 \x01(\x04\x12\x0e\n\x06\x63losed\x18\x05 \x01(\x08\x12\x11\n\twinsize_x\x18\x06 \x01(\x05\x12\x11\n\twinsize_y\x18\x07 \x01(\x05\x12\x14\n\x0cwinsize_rows\x18\x08 \x01(\r\x12\x14\n\x0cwinsize_cols\x18\t \x01(\r\"\xd5\x01\n\x14\x45ncryptedSessionData\x12<\n\x06shells\x18\x01 \x03(\x0b\x32,.terminalEz.EncryptedSessionData.ShellsEntry\x12\x10\n\x08next_sid\x18\x02 \x01(\r\x12\x10\n\x08next_uid\x18\x03 \x01(\r\x12\x0c\n\x04name\x18\x04 \x01(\t\x1aM\n\x0bShellsEntry\x12\x0b\n\x03key\x18\x01 \x01(\r\x12-\n\x05value\x18\x02 \x01(\x0b\x32\x1e.terminalEz.EncryptedShellData:\x02\x38\x01\x32\xf0\x01\n\nTerminalEz\x12\x61\n\x12InitiateConnection\x12$.terminalEz.InitialConnectionRequest\x1a%.terminalEz.InitialConnectionResponse\x12\x41\n\x07\x43hannel\x12\x18.terminalEz.ClientUpdate\x1a\x18.terminalEz.ServerUpdate(\x01\x30\x01\x12<\n\x05\x43lose\x12\x18.terminalEz.CloseRequest\x1a\x19.terminalEz.CloseResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,35 +36,35 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_ENCRYPTEDSESSIONDATA_SHELLSENTRY']._loaded_options = None
   _globals['_ENCRYPTEDSESSIONDATA_SHELLSENTRY']._serialized_options = b'8\001'
   _globals['_INITIALCONNECTIONREQUEST']._serialized_start=32
-  _globals['_INITIALCONNECTIONREQUEST']._serialized_end=74
-  _globals['_INITIALCONNECTIONRESPONSE']._serialized_start=76
-  _globals['_INITIALCONNECTIONRESPONSE']._serialized_end=136
-  _globals['_NEWSHELL']._serialized_start=138
-  _globals['_NEWSHELL']._serialized_end=188
-  _globals['_TERMINALINPUT']._serialized_start=190
-  _globals['_TERMINALINPUT']._serialized_end=253
-  _globals['_TERMINALOUTPUT']._serialized_start=255
-  _globals['_TERMINALOUTPUT']._serialized_end=320
-  _globals['_SEQUENCENUMBERS']._serialized_start=322
-  _globals['_SEQUENCENUMBERS']._serialized_end=434
-  _globals['_SEQUENCENUMBERS_MAPENTRY']._serialized_start=392
-  _globals['_SEQUENCENUMBERS_MAPENTRY']._serialized_end=434
-  _globals['_CLIENTUPDATE']._serialized_start=437
-  _globals['_CLIENTUPDATE']._serialized_end=639
-  _globals['_SERVERUPDATE']._serialized_start=642
-  _globals['_SERVERUPDATE']._serialized_end=918
-  _globals['_TERMINALSIZE']._serialized_start=920
-  _globals['_TERMINALSIZE']._serialized_end=980
-  _globals['_CLOSEREQUEST']._serialized_start=982
-  _globals['_CLOSEREQUEST']._serialized_end=1016
-  _globals['_CLOSERESPONSE']._serialized_start=1018
-  _globals['_CLOSERESPONSE']._serialized_end=1050
-  _globals['_ENCRYPTEDSHELLDATA']._serialized_start=1053
-  _globals['_ENCRYPTEDSHELLDATA']._serialized_end=1245
-  _globals['_ENCRYPTEDSESSIONDATA']._serialized_start=1248
-  _globals['_ENCRYPTEDSESSIONDATA']._serialized_end=1461
-  _globals['_ENCRYPTEDSESSIONDATA_SHELLSENTRY']._serialized_start=1384
-  _globals['_ENCRYPTEDSESSIONDATA_SHELLSENTRY']._serialized_end=1461
-  _globals['_TERMINALEZ']._serialized_start=1464
-  _globals['_TERMINALEZ']._serialized_end=1704
+  _globals['_INITIALCONNECTIONREQUEST']._serialized_end=100
+  _globals['_INITIALCONNECTIONRESPONSE']._serialized_start=102
+  _globals['_INITIALCONNECTIONRESPONSE']._serialized_end=162
+  _globals['_NEWSHELL']._serialized_start=164
+  _globals['_NEWSHELL']._serialized_end=234
+  _globals['_TERMINALINPUT']._serialized_start=236
+  _globals['_TERMINALINPUT']._serialized_end=299
+  _globals['_TERMINALOUTPUT']._serialized_start=301
+  _globals['_TERMINALOUTPUT']._serialized_end=366
+  _globals['_SEQUENCENUMBERS']._serialized_start=368
+  _globals['_SEQUENCENUMBERS']._serialized_end=480
+  _globals['_SEQUENCENUMBERS_MAPENTRY']._serialized_start=438
+  _globals['_SEQUENCENUMBERS_MAPENTRY']._serialized_end=480
+  _globals['_CLIENTUPDATE']._serialized_start=483
+  _globals['_CLIENTUPDATE']._serialized_end=685
+  _globals['_SERVERUPDATE']._serialized_start=688
+  _globals['_SERVERUPDATE']._serialized_end=964
+  _globals['_TERMINALSIZE']._serialized_start=966
+  _globals['_TERMINALSIZE']._serialized_end=1026
+  _globals['_CLOSEREQUEST']._serialized_start=1028
+  _globals['_CLOSEREQUEST']._serialized_end=1062
+  _globals['_CLOSERESPONSE']._serialized_start=1064
+  _globals['_CLOSERESPONSE']._serialized_end=1096
+  _globals['_ENCRYPTEDSHELLDATA']._serialized_start=1099
+  _globals['_ENCRYPTEDSHELLDATA']._serialized_end=1291
+  _globals['_ENCRYPTEDSESSIONDATA']._serialized_start=1294
+  _globals['_ENCRYPTEDSESSIONDATA']._serialized_end=1507
+  _globals['_ENCRYPTEDSESSIONDATA_SHELLSENTRY']._serialized_start=1430
+  _globals['_ENCRYPTEDSESSIONDATA_SHELLSENTRY']._serialized_end=1507
+  _globals['_TERMINALEZ']._serialized_start=1510
+  _globals['_TERMINALEZ']._serialized_end=1750
 # @@protoc_insertion_point(module_scope)

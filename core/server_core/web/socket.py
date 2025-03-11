@@ -156,7 +156,7 @@ async def handle_socket(websocket: WebSocket, session: Session):
                 sid: Sid = await session.counter.incr_sid()
                 asyncio.create_task(session.sync_now())
 
-                new_shell = terminalez_pb2.NewShell( shell_id = sid.value, x=recv_data.x, y=recv_data.y)
+                new_shell = terminalez_pb2.NewShell( shell_id = sid.value, x=recv_data.x, y=recv_data.y, shell_info=recv_data.shell_info)
 
                 await session.buffer_message.put(terminalez_pb2.ServerUpdate(create_shell=new_shell))
 
