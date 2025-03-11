@@ -145,7 +145,7 @@ class EncryptedShellData(_message.Message):
     def __init__(self, seq_num: _Optional[int] = ..., data: _Optional[_Iterable[bytes]] = ..., chunk_offset: _Optional[int] = ..., byte_offset: _Optional[int] = ..., closed: bool = ..., winsize_x: _Optional[int] = ..., winsize_y: _Optional[int] = ..., winsize_rows: _Optional[int] = ..., winsize_cols: _Optional[int] = ...) -> None: ...
 
 class EncryptedSessionData(_message.Message):
-    __slots__ = ("shells", "next_sid", "next_uid", "name")
+    __slots__ = ("shells", "next_sid", "next_uid", "name", "available_shells")
     class ShellsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -157,8 +157,10 @@ class EncryptedSessionData(_message.Message):
     NEXT_SID_FIELD_NUMBER: _ClassVar[int]
     NEXT_UID_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
+    AVAILABLE_SHELLS_FIELD_NUMBER: _ClassVar[int]
     shells: _containers.MessageMap[int, EncryptedShellData]
     next_sid: int
     next_uid: int
     name: str
-    def __init__(self, shells: _Optional[_Mapping[int, EncryptedShellData]] = ..., next_sid: _Optional[int] = ..., next_uid: _Optional[int] = ..., name: _Optional[str] = ...) -> None: ...
+    available_shells: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, shells: _Optional[_Mapping[int, EncryptedShellData]] = ..., next_sid: _Optional[int] = ..., next_uid: _Optional[int] = ..., name: _Optional[str] = ..., available_shells: _Optional[_Iterable[str]] = ...) -> None: ...

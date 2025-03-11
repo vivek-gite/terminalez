@@ -22,7 +22,7 @@ SHELL_STORED_BYTES = 1 << 21  # 2 MiB
 class Metadata:
     """Static metadata for this session."""
     name: str # The name of the host computer running the session. Format: "username@hostname"
-    # available_shells: List[str] # The available shells on the host computer.
+    available_shells: List[str] # The available shells on the host computer.
 
 class State:
     """ Internal State of a single shell within a session."""

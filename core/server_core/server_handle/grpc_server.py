@@ -53,8 +53,7 @@ class GrpcServer(terminalez_pb2_grpc.TerminalEzServicer):
             if session is not None:
                 raise Exception("Session already exists")
 
-            # TODO: handle the list of available shells from the request object
-            metadata: Metadata = Metadata(request.m_name)
+            metadata: Metadata = Metadata(name=request.m_name, available_shells=list(request.available_shells))
             await self.server_state.insert(random_name, Session(metadata=metadata))
             url = f"/session/{random_name}"
 

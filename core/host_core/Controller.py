@@ -63,7 +63,7 @@ class GrpcClient:
         try:
             request = terminalez_pb2.InitialConnectionRequest(
                 m_name=machine_name,
-                available_shells=Runner.list_available_terminals()
+                available_shells=Runner.available_terminals_list()
             )
 
             response = await asyncio.wait_for(

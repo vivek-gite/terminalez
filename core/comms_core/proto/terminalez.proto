@@ -109,6 +109,7 @@ message EncryptedSessionData {
   uint32 next_sid = 2;
   uint32 next_uid = 3;
   string name = 4;
+  repeated string available_shells = 5;     // List of available shells.
 }
 
 

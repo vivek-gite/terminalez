@@ -16,7 +16,6 @@ MAX_CHECKPOINT_SIZE = 1 << 22 # 4 MiB
 compressor = zstandard.ZstdCompressor(level=3)
 decompressor = zstandard.ZstdDecompressor(max_window_size=MAX_CHECKPOINT_SIZE)
 
-# TODO: make use of this compress data
 def compress_data(data: bytes) -> bytes:
     """
     Compresses the given data using the zstandard compression algorithm.
@@ -65,7 +64,10 @@ async def checkpoint_capture(session: Session):
     shell_list: web_protocol_pb2.WsServer.Shells = session.source.get_latest()
 
     # Convert the list to a dictionary
-    win_sizes: Dict[libs.Sid, web_protocol_pb2.WsWinsize] = {sid: winsize for sid, winsize in shell_list.shells.items()}
+    win_sizes: Dict[libs.Sid, web_protocol_pb2.WsWinsize] = {
+        sid: winsize
+        for sid, winsize in shell_list.shells.items()
+    }
 
     encrypted_session_data: terminalez_pb2.EncryptedSessionData = terminalez_pb2.EncryptedSessionData()
 
@@ -75,7 +77,7 @@ async def checkpoint_capture(session: Session):
 
         offset: int = 0
         stored_bytes: int = session_state.seq_num - session_state.byte_offset
-        while offset < len(session_state.data) and stored_bytes > SHELL_CHECKPOINT_BYTES:
+        while offset < len(session_state.data) and stored_bytes >= SHELL_CHECKPOINT_BYTES:
             chunk_size = len(session_state.data[offset])
             stored_bytes -= chunk_size
             chunk_offset += 1
@@ -102,6 +104,7 @@ async def checkpoint_capture(session: Session):
     encrypted_session_data.next_sid = sid.value
     encrypted_session_data.next_uid = uid.value
     encrypted_session_data.name = session.metadata.name
+    encrypted_session_data.available_shells.extend(session.metadata.available_shells)
 
     serialized_data: bytes = encrypted_session_data.SerializeToString()
     return serialized_data
@@ -115,7 +118,8 @@ async def checkpoint_restore(data: bytes, session: Session):
     encrypted_session_data: terminalez_pb2.EncryptedSessionData = terminalez_pb2.EncryptedSessionData()
     encrypted_session_data.ParseFromString(data)
 
-    session.metadata = Metadata(name=encrypted_session_data.name)
+    session.metadata = Metadata(name=encrypted_session_data.name,
+                                available_shells=list(encrypted_session_data.available_shells))
 
     shells: Dict[libs.Sid, State] = await session.shells.read()
     await session.shells.acquire_write()

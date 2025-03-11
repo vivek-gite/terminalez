@@ -36,6 +36,18 @@ class Runner:
 
         return terminals
 
+    @staticmethod
+    def available_terminals_list():
+        terminals = Runner.list_available_terminals()
+
+        # shells format = {shell1;path1, shell2;path2, ...}
+        lst = []
+
+        for name, path in terminals.items():
+            lst.append(f"{name};{path}")
+
+        return lst
+
     def select_terminal(self) -> str:
         """ Lists available terminals and prompts the user to select one. """
         terminals = self.list_available_terminals()
