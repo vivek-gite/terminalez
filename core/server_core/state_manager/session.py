@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from typing import Callable, AsyncGenerator
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from core.server_core.web.proto.ws_protocol import web_protocol_pb2
 # maximum number of bytes of terminal output to store for each shell
 SHELL_STORED_BYTES = 1 << 21  # 2 MiB
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Metadata:
@@ -277,7 +279,7 @@ class Session:
 
         match users_data.users.get(uid.value):
             case None:
-                print(f"Invariant violation: removed user with id={uid} does not exist")
+                logger.info(f"Invariant violation: removed user with id={uid} does not exist")
             case user:
                 await self.users.acquire_write()
                 try:

@@ -47,7 +47,7 @@ class GrpcServer(terminalez_pb2_grpc.TerminalEzServicer):
         """
         try:
             random_name = self.generate_random_number_string(10)
-            print(f"Initiating connection with name {random_name}")
+            logger.info(f"Initiating connection with name {random_name}")
 
             session = self.server_state.lookup(random_name)
             if session is not None:
@@ -62,6 +62,7 @@ class GrpcServer(terminalez_pb2_grpc.TerminalEzServicer):
                 url=url)
         except Exception as e:
             logger.exception(f"Error initiating connection: {e}")
+        return None
 
     async def Channel(self,
                       request_iterator: AsyncIterable[terminalez_pb2.ClientUpdate],
@@ -89,6 +90,8 @@ class GrpcServer(terminalez_pb2_grpc.TerminalEzServicer):
             if not first_message.HasField("session_id"):
                 raise Exception("First message must contain the session id")
 
+            logger.info(f"Received first message: {first_message}")
+
             session_name = first_message.session_id
             session_rw_lock: ReadWriteLock[Session] = await self.server_state.backend_connect(session_name)
 
@@ -106,10 +109,13 @@ class GrpcServer(terminalez_pb2_grpc.TerminalEzServicer):
             except Exception as e:
                 raise ConnectionError(f"connection exiting early due to an error: {e}")
 
+            logger.info(f"Starting channel handler for session {session_name}")
             # Yield the results from the result queue
             while True:
                 try:
-                    yield await result_queue.get()
+                    mickey_data = await result_queue.get()
+                    logger.info(f"Yielding data from result queue: {mickey_data}")
+                    yield mickey_data
                 except asyncio.CancelledError:
                     break
         except Exception as e:
@@ -141,6 +147,7 @@ class GrpcServer(terminalez_pb2_grpc.TerminalEzServicer):
             return terminalez_pb2.CloseResponse(success=True)
         except Exception as e:
             logger.exception(f"Error closing session: {e}")
+        return None
 
 
 async def handle_streaming(result_queue: asyncio.Queue,
@@ -161,13 +168,23 @@ async def handle_streaming(result_queue: asyncio.Queue,
         None
     """
 
+    # Create a queue for incoming client messages
+    requests_queue = asyncio.Queue()
+
+    # Start a single background task that consumes the iterator
+    # and puts results into the queue
+    asyncio.create_task(
+        consume_iterator(iterator, requests_queue),
+        name="iterator_consumer"
+    )
+
     while True:
         done, pending = await asyncio.wait(
             [
                 asyncio.create_task(asyncio.sleep(SYNC_INTERVAL), name="sync_interval"),
                 asyncio.create_task(asyncio.sleep(PING_INTERVAL), name="ping_interval"),
                 asyncio.create_task(send_buffered_server_updates(session=session), name="send_buffered_server_updates"),
-                asyncio.create_task(iterator.__anext__(), name="incoming_client_messages"),
+                asyncio.create_task(get_queue_data(requests_queue), name="incoming_client_messages"),
                 asyncio.create_task(session.terminated(), name="terminated")
             ], return_when=asyncio.FIRST_COMPLETED
         )
@@ -198,7 +215,9 @@ async def handle_streaming(result_queue: asyncio.Queue,
                     raise Exception(f"Failed to send buffered server updates: {e}")
             case "incoming_client_messages":
                 try:
-                    await incoming_client_messages(result_queue, session, done_result.result())
+                    result: terminalez_pb2.ClientUpdate = done_result.result()
+                    logger.info(f"Incoming client message: {result}")
+                    await incoming_client_messages(result_queue, session, result)
                 except Exception as e:
                     raise Exception(f"Failed to handle incoming client messages: {e}")
 
@@ -233,7 +252,7 @@ async def ping_interval() -> terminalez_pb2.ServerUpdate:
     return terminalez_pb2.ServerUpdate(ping=get_timestamp())
 
 
-async def send_buffered_server_updates(session: Session) -> Coroutine:
+async def send_buffered_server_updates(session: Session) -> terminalez_pb2.ServerUpdate:
     """
     Retrieves the next buffered server update message for the given session.
     This is used to send the command that needs to be executed on the host machine terminal.
@@ -244,7 +263,34 @@ async def send_buffered_server_updates(session: Session) -> Coroutine:
     Returns:
         Coroutine: A coroutine that retrieves the next buffered server update message.
     """
-    return session.buffer_message.get()
+    message:terminalez_pb2.ServerUpdate = await session.buffer_message.get()
+    return message
+
+
+async def consume_iterator(iterator: AsyncIterator[terminalez_pb2.ClientUpdate],
+                            requests_queue: asyncio.Queue) -> None:
+    """Consumes the async iterator and puts items into the queue.
+    Only this function will access the iterator directly."""
+    try:
+        while True:
+            try:
+                item = await iterator.__anext__()
+                await requests_queue.put(item)
+            except StopAsyncIteration:
+                logger.info("Client has closed the stream (StopAsyncIteration).")
+                # Signal that the iterator is exhausted
+                await requests_queue.put(None)
+                break
+            except Exception as e:
+                logger.exception(f"Error consuming iterator: {e}")
+                raise
+    except asyncio.CancelledError:
+        logger.info("Iterator consumer task was cancelled")
+        raise
+
+async def get_queue_data(queue: asyncio.Queue) -> terminalez_pb2.ClientUpdate:
+    """Gets data from the queue. Returns None if the iterator is exhausted."""
+    return await queue.get()
 
 
 async def incoming_client_messages(result_queue: asyncio.Queue, session: Session, result: terminalez_pb2.ClientUpdate):

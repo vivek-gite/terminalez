@@ -1,3 +1,4 @@
+import logging
 import os
 import queue
 import sys
@@ -7,6 +8,7 @@ import win32event
 
 from terminal import Terminal
 
+logger = logging.getLogger(__name__)
 
 class Runner:
     def __init__(self):
@@ -51,9 +53,9 @@ class Runner:
     def select_terminal(self) -> str:
         """ Lists available terminals and prompts the user to select one. """
         terminals = self.list_available_terminals()
-        print("Available terminals:")
+        logger.info("Available terminals:")
         for index, name in enumerate(terminals.keys()):
-            print(f"{index + 1}. {name}")
+            logger.info(f"{index + 1}. {name}")
 
         choice: int = -1
         try:
@@ -62,7 +64,7 @@ class Runner:
             while choice not in range(len(terminals)):
                 choice = int(input("Invalid choice. Please enter a valid number: ")) - 1
         except ValueError:
-            print("Invalid choice. Please enter a valid number.")
+            logger.error("Invalid choice. Please enter a valid number.")
             self.select_terminal()
 
         # Storing the selected terminal name
@@ -100,7 +102,7 @@ class Runner:
     def create_terminal(self, terminal_path: str="") -> None:
         """Creates a new terminal process."""
         terminal_path = self.select_terminal() if terminal_path!="" else terminal_path
-        print(f"Opening terminal: {terminal_path}")
+        logger.info(f"Opening terminal: {terminal_path}")
 
         # Create a new terminal process
         terminal = Terminal(terminal_path, self.write_pipe, self.read_pipe)

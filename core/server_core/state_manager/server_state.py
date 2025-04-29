@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from typing import Dict, AsyncGenerator
 
@@ -7,6 +8,7 @@ from core.server_core.mesh_handle.mesh import SessionMesh
 from core.server_core.state_capture import checkpoint
 from core.server_core.state_manager.session import Session
 
+logger = logging.getLogger(__name__)
 
 class ServerState:
     def __init__(self):
@@ -30,12 +32,23 @@ class ServerState:
         return self.store_fgMap.get(name)
 
     async def insert(self, name: str, session: Session):
+        """
+        Inserts or replaces a session in the store.
+        This method adds a new session to the store with the given name. If a session
+        with the same name already exists, it shuts down the old session before replacing it.
+        It also creates a background task to periodically synchronize the session.
+
+       Args:
+           name (str): The name or identifier for the session.
+           session (Session): The session object to be inserted.
+       """
         if name in self.store_fgMap:
             old_session: Session = await self.store_fgMap[name].read()
             await old_session.shutdown_session()
 
         asyncio.create_task(self.mesh.periodic_session_sync(name, session))
         self.store_fgMap[name] = ReadWriteLock(session)
+        logger.info(f"Session {name} inserted into the store.")
 
     async def remove(self, name: str):
         session: ReadWriteLock = self.store_fgMap.pop(name)
@@ -104,7 +117,7 @@ class ServerState:
             async for name in transfer_generator:
                 self.store_fgMap.pop(name)
         except Exception as e:
-            print(f"Error in process_transfers: {e}")
+            logger.exception(f"Error in process_transfers: {e}")
 
 
 

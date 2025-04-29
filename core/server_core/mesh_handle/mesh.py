@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Any
@@ -16,6 +17,8 @@ REDIS_PASS = os.getenv("REDIS_PASS", "")
 POOL_SIZE = 6
 TIMEOUT = 10
 TIME_TO_LIVE = 300
+
+logger = logging.getLogger(__name__)
 
 class SessionMesh:
     def __init__(self):
@@ -63,8 +66,8 @@ class SessionMesh:
                         return None
                     return parent
         except redis.RedisError as e:
-            print(f"Redis Error in get_owner: {e}")
-
+            logger.exception(f"Redis Error in get_owner: {e}")
+            return None
 
     async def get_session(self, name):
         try:
@@ -78,8 +81,8 @@ class SessionMesh:
                         return [None, None]
                     return [parent, session]
         except redis.RedisError as e:
-            print(f"Redis Error in get_session: {e}")
-
+            logger.exception(f"Redis Error in get_session: {e}")
+        return None
 
     async def periodic_session_sync(self, name: str, session: Session):
         """
@@ -115,7 +118,7 @@ class SessionMesh:
                         await pipe.setex(name=f"mesh:{name}:parent", value=session.metadata.name, time= TIME_TO_LIVE)
                         await pipe.execute()
             except redis.RedisError as e:
-                print(f"Redis Error in periodic_session_sync: {e}")
+                logger.exception(f"Redis Error in periodic_session_sync: {e}")
                 continue
 
 
@@ -160,7 +163,7 @@ class SessionMesh:
                     if message['type'] == 'message':
                         yield message['data'].decode('utf-8')  # Yield each message to the caller
             except redis.RedisError as e:
-                print(f"Redis Error in subscribe_transfers: {e}")
+                logger.exception(f"Redis Error in subscribe_transfers: {e}")
                 continue
 
         if redis_conn:

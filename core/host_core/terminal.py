@@ -1,3 +1,5 @@
+import logging
+
 import win32api
 import win32con
 import win32file
@@ -7,6 +9,8 @@ import os
 import queue
 
 import win32security
+
+logger = logging.getLogger(__name__)
 
 class Terminal:
     def __init__(self, shell_path: str, write_queue: queue.Queue, read_queue: queue.Queue):
@@ -26,15 +30,15 @@ class Terminal:
                     break  # Pipe closed
                 try:
                     decoded_data = data.decode(encoding)
-                    # print(decoded_data, end='', flush=True)
+
                     self.read_queue.put_nowait(decoded_data)
                 except UnicodeDecodeError:
-                    print(f"Warning: Could not decode output using {encoding}. Raw bytes: {data!r}")
+                    logger.exception(f"Warning: Could not decode output using {encoding}. Raw bytes: {data!r}")
             except win32api.error as e:
                 if e.winerror == 109:  # Pipe has been ended
                     break
                 else:
-                    print(f"Error reading from pipe: {e}")
+                    logger.exception(f"Error reading from pipe: {e}")
                     break
 
     def write_input(self, handle):
@@ -54,7 +58,7 @@ class Terminal:
             except EOFError:  # Handle Ctrl+D
                 break
             except Exception as e:
-                print(f"Error writing to pipe: {e}")
+                logger.exception(f"Error writing to pipe: {e}")
                 break
 
     def create_pipes(self) -> tuple:
@@ -94,7 +98,7 @@ class Terminal:
                 startup_info
             )
         except win32api.error as e:
-            print(f"Error creating process: {e}")
+            logger.exception(f"Error creating process: {e}")
             return
 
         # Close unused handles in the parent process

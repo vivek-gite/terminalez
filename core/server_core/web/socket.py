@@ -26,8 +26,10 @@ async def recv(websocket: WebSocket) -> web_protocol_pb2.WsClient | None:
             message.ParseFromString(data)
             return message
         except WebSocketDisconnect as e:
-            logger.error(f"Websocket receiver dropped, due to {e}")
+            logger.exception(f"Websocket receiver dropped, due to {e}")
             break
+    return None
+
 
 async def get_session_ws(name: str, websocket: WebSocket, server_state: ServerState):
     try:
@@ -37,7 +39,7 @@ async def get_session_ws(name: str, websocket: WebSocket, server_state: ServerSt
         except Exception as e:
             logger.exception(f"Websocket handler failed closing session {name} due to {e}")
     except Exception as e:
-        logger.error(f"Session with name: {name} not found due to {e}")
+        logger.exception(f"Session with name: {name} not found due to {e}")
         error_response = {
             "status": "error",
             "code": 1011,
@@ -185,7 +187,7 @@ async def handle_socket(websocket: WebSocket, session: Session):
                 terminal_size = terminalez_pb2.TerminalSize(shell_id=recv_data.shell,
                                                             rows=recv_data.size.rows,
                                                             cols=recv_data.size.cols)
-                await session.buffer_message.put(terminal_size)
+                await session.buffer_message.put(terminalez_pb2.ServerUpdate(resize=terminal_size))
 
             case "data":
                 recv_data: web_protocol_pb2.WsClient.Data = ws_client_message.data
