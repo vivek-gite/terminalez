@@ -41,16 +41,39 @@ class ServerState:
        Args:
            name (str): The name or identifier for the session.
            session (Session): The session object to be inserted.
-       """
+        """
+        # Create a tracked task for session synchronization
+        sync_task = None
+        
+        # Check for existing session and handle it safely
         if name in self.store_fgMap:
-            old_session: Session = await self.store_fgMap[name].read()
-            await old_session.shutdown_session()
-
-        asyncio.create_task(self.mesh.periodic_session_sync(name, session))
-        self.store_fgMap[name] = ReadWriteLock(session)
+            try:
+                print("shutting down in insert")
+                # Use a timeout to prevent indefinite waiting
+                old_session_lock = self.store_fgMap[name]
+                old_session = await asyncio.wait_for(old_session_lock.read(), timeout=10.0)
+                await old_session.shutdown_session()
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning(f"Failed to properly shutdown existing session {name}: {e}")
+                # Continue with replacement anyway
+        
+        # Create a new ReadWriteLock with the session
+        session_lock = ReadWriteLock(session)
+        
+        # Store the reference first, then start the background task
+        self.store_fgMap[name] = session_lock
+        
+        # Create a tracked background task
+        sync_task = asyncio.create_task(self.mesh.periodic_session_sync(name, session))
+        
+        # Store the task reference on the session for proper cleanup later
+        session.background_tasks = session.background_tasks or []
+        session.background_tasks.append(sync_task)
+        
         logger.info(f"Session {name} inserted into the store.")
 
     async def remove(self, name: str):
+        print("shutting down in remove")
         session: ReadWriteLock = self.store_fgMap.pop(name)
         old_session: Session= await session.read()
         await old_session.shutdown_session()
@@ -96,6 +119,7 @@ class ServerState:
 
     def frontend_connect(self, name: str) -> ReadWriteLock[Session]:
         if name in self.store_fgMap:
+            print(f"found in store {name}")
             return self.lookup(name)
 
         raise Exception(f"Session {name} not found in the store")

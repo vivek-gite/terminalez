@@ -9,6 +9,7 @@ class Shutdown:
         self.notify: asyncio.Condition = asyncio.Condition()
 
     async def shutdown(self) -> None:
+        print("Shutting down...")
         await self._shutdown.write(True)
         async with self.notify:
             self.notify.notify_all()
@@ -23,3 +24,4 @@ class Shutdown:
         if not val:
             async with self.notify:
                 await self.notify.wait()
+        print(f"Waiting for shutdown... val: {val}")

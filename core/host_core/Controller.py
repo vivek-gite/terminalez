@@ -7,8 +7,9 @@ from typing import Optional, Tuple
 import grpc
 import grpc.aio
 from core.comms_core.proto.terminalez import terminalez_pb2_grpc, terminalez_pb2
+from core.host_core.ConPTyRunner import ConPTyRunner
+from core.host_core.ConPTyTerminal import Resize, ShellData, Data, Sync
 from core.host_core.console_handler import ConsoleHandler
-from core.host_core.runner import Runner
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class GrpcClient:
         self.channel: Optional[grpc.aio.Channel] = None
         self.stub: Optional[terminalez_pb2_grpc.TerminalEzStub] = None
         self.name: str = ""
-        self.shells_output_queue: queue.Queue = queue.Queue()
+        self.shells_output_queue: asyncio.Queue[terminalez_pb2.ClientUpdate] = asyncio.Queue(maxsize=1000)  # Bounded queue to prevent memory issues
         # self.shells_input_queue: dict = {}
         self.console_handler: ConsoleHandler = ConsoleHandler(self.shells_output_queue)
 
@@ -33,10 +34,21 @@ class GrpcClient:
     async def close(self) -> None:
         """Closes the gRPC channel gracefully"""
         logger.info("Closing the gRPC channel")
+        
+        # Shutdown console handler first to clean up terminals
+        try:
+            await self.console_handler.shutdown()
+        except Exception as e:
+            logger.error(f"Error shutting down console handler: {e}")
+        
+        # Close gRPC connection
         request = terminalez_pb2.CloseRequest(session_id=self.name)
         if self.channel and (self.channel.get_state() in (grpc.ChannelConnectivity.IDLE, grpc.ChannelConnectivity.READY)):
-            await self.stub.Close(request)
-            await self.channel.close()
+            try:
+                await self.stub.Close(request)
+                await self.channel.close()
+            except Exception as e:
+                logger.error(f"Error closing gRPC channel: {e}")
 
     async def initiate_connection(self, machine_name: str) -> Tuple[str, str]:
         """
@@ -60,7 +72,7 @@ class GrpcClient:
         try:
             request = terminalez_pb2.InitialConnectionRequest(
                 m_name=machine_name,
-                available_shells=Runner.available_terminals_list()
+                available_shells=ConPTyRunner.available_terminals_list()
             )
 
             response = await asyncio.wait_for(
@@ -116,14 +128,15 @@ class GrpcClient:
         create_shell = terminalez_pb2.NewShell(shell_id=sid, x=x, y=y, shell_info=shell_info)
         client_update = terminalez_pb2.ClientUpdate(created_shell=create_shell)
 
-        self.console_handler.output_pipe.put_nowait(client_update)
+        await self.console_handler.output_pipe.put(client_update)
 
         terminal_path = shell_info.strip().split(";")[1]
 
-        await asyncio.create_task(self.console_handler.shell_task(sid=sid, terminal_path=terminal_path))
+        shell_task = asyncio.create_task(self.console_handler.shell_task(sid=sid, terminal_path=terminal_path))
+        await shell_task
 
         close_shell = terminalez_pb2.ClientUpdate(closed_shell=sid)
-        self.console_handler.output_pipe.put_nowait(close_shell)
+        await self.console_handler.output_pipe.put(close_shell)
 
 
     # TODO: Implement the sync mechanism
@@ -158,48 +171,71 @@ class GrpcClient:
                 task.cancel()
 
             # Get the first completed task
-            done_result = done.pop()
-
-            # Log the completed task
+            done_result = done.pop()            # Log the completed task
             logger.info(f"The first completed task in try_channel is {done_result.get_name()}")
-
-            # Handle the completed task
+              # Handle the completed task
             match done_result.get_name():
                 case "heartbeat_interval":
                     await send_message(response_stream, terminalez_pb2.ClientUpdate())
                     continue
                 case "shell_output_data":
-                    shell_output = self.shells_output_queue.get_nowait()
-                    self.shells_output_queue.task_done()
-                    await send_message(response_stream, shell_output)
+                    shell_output = done_result.result()
+                    if shell_output is not None:
+                        self.shells_output_queue.task_done()
+                        await send_message(response_stream, shell_output)
+                        
+                        # Monitor queue size for potential backpressure issues
+                        qsize = self.shells_output_queue.qsize()
+                        if qsize > 50:  # Warn if queue is growing large
+                            logger.warning(f"Shell output queue size is high: {qsize} - potential backpressure")
                     continue
                 case _:
                     pass
 
-            message:terminalez_pb2.ServerUpdate = done_result.result()
+            message: terminalez_pb2.ServerUpdate = done_result.result()
 
             match message.WhichOneof("server_message"):
                 case "terminal_input":
                     data = message.terminal_input
-                    decoded_data = data.data.decode("utf-8")
-                    sender: queue.Queue = self.console_handler.terminal_writes.get(data.shell_id)
-
-                    sender.put_nowait(decoded_data)
+                    
+                    # Creating a new Data object to send to the terminal
+                    shell_data = Data(data=data.data)
+                    sent = await self.console_handler.send_input_to_terminal(sid=data.shell_id, data=shell_data)
+                    if not sent:
+                        logger.error(f"Failed to send input to terminal with ID {data.shell_id}")
+                        await send_message(response_stream, terminalez_pb2.ClientUpdate(error=f"Failed to send input to terminal {data.shell_id}"))
                 case "create_shell":
-                    id = message.create_shell.shell_id
-                    if id not in self.console_handler.terminal_writes:
-                        asyncio.create_task(self.spawn_shell_task(id, message.create_shell.x, message.create_shell.y, message.create_shell.shell_info ))
+                    shell_id = message.create_shell.shell_id
+                    if shell_id not in self.console_handler.active_terminals:
+                        asyncio.create_task(self.spawn_shell_task(shell_id, message.create_shell.x, message.create_shell.y, message.create_shell.shell_info ))
                     else:
-                        logger.error(f"Shell with ID {id} already exists.")
+                        logger.error(f"Shell with ID {shell_id} already exists.")
                 case "close_shell":
-                    id = message.close_shell
-                    del self.console_handler.terminal_writes[id]
+                    shell_id = message.close_shell
+                    # Clean up terminal through the console handler's cleanup method
+                    if shell_id in self.console_handler.active_terminals:
+                        await self.console_handler._cleanup_terminal(shell_id)
 
-                    await send_message(response_stream, terminalez_pb2.ClientUpdate(closed_shell=id))
+                    await send_message(response_stream, terminalez_pb2.ClientUpdate(closed_shell=shell_id))
                 case "sync":
-                    pass
+                    seq_nums_map: terminalez_pb2.SequenceNumbers = message.sync
+                    for sid, seq in seq_nums_map.map.items():
+                        shell_data_sync = Sync(seq=seq)
+                        sent = await self.console_handler.send_input_to_terminal(sid=sid, data=shell_data_sync)
+                        if not sent:
+                            logger.warning("No sender found for shell ID %s", sid)
+                            await send_message(response_stream, terminalez_pb2.ClientUpdate(closed_shell=sid))
+
                 case "resize":
-                    pass
+                    resize = Resize(message.resize.rows, message.resize.cols)
+                    shell_id = message.resize.shell_id
+                    
+                    # Use the new send_input_to_terminal method for resize operations
+                    sent = await self.console_handler.send_input_to_terminal(sid=shell_id, data=resize)
+                    if not sent:
+                        logger.error(f"Failed to send resize to terminal {shell_id}")
+                        await send_message(response_stream, terminalez_pb2.ClientUpdate(error=f"Failed to resize terminal {shell_id}"))
+
                 case "ping":
                     # Echo back the timestamp
                     logger.info(f"Received ping: {message.ping}")
@@ -208,24 +244,61 @@ class GrpcClient:
                     logger.error(f"Server returned error: {message.error}")
 
 
-async def shell_output_data(shell_output_queue: queue.Queue):
-    while True:
-        if shell_output_queue._qsize() > 0:
-            break
-        await asyncio.sleep(1)
+async def shell_output_data(shell_output_queue: asyncio.Queue) -> Optional[terminalez_pb2.ClientUpdate]:
+    """
+    Gets data from the shell output queue by continuously checking if data is available.
+
+    This function uses a while loop to check if the queue has data available,
+    returning immediately when data is found or yielding control to allow other tasks to run.
+
+    Returns:
+        Optional[terminalez_pb2.ClientUpdate]: The queue data when available
+    """
+    try:
+        while True:
+            # Check if queue has data without blocking
+            if not shell_output_queue.empty():
+                # Get data from queue (this should not block since we checked it's not empty)
+                return await shell_output_queue.get()
+            else:
+                # Queue is empty, yield control to other tasks briefly
+                await asyncio.sleep(0.01)  # Small sleep to prevent busy waiting
+    except Exception as e:
+        logger.warning(f"Error retrieving shell output data: {e}")
+        return None
 
 
 async def get_stream_data(response_stream: grpc.aio.StreamStreamCall, incoming_data_queue: asyncio.Queue):
-    try:
-        data = await response_stream.read()
-        incoming_data_queue.put_nowait(data)
-    except asyncio.CancelledError as e:
-        logger.exception(f"Error in reading stream data: {e}")
-        raise
+    """
+    Continuously reads data from a gRPC stream and adds it to an async queue for processing.
 
-async def get_incoming_data_queue(queue: asyncio.Queue) -> terminalez_pb2.ServerUpdate:
+    This function runs in an infinite loop until an exception occurs, reading messages
+    from the gRPC stream one by one and placing them in the provided queue. It uses
+    non-blocking put operations to avoid deadlocks.
+
+    Args:
+        response_stream (grpc.aio.StreamStreamCall): The bidirectional gRPC stream to read from
+        incoming_data_queue (asyncio.Queue): The queue where received messages will be stored
+
+    Raises:
+        Exception: Propagates any exception that occurs during stream reading after logging it
+
+    Note:
+        This function is designed to be run as a background task and will continue
+        until an exception occurs or the stream closes.
+    """
+    while True:
+        try:
+            item = await response_stream.read()
+            logger.info(f"Client Received data: {item}")
+            incoming_data_queue.put_nowait(item)
+        except Exception as e:
+            logger.exception(f"Error in reading stream data: {e}")
+            raise
+
+async def get_incoming_data_queue(data_queue: asyncio.Queue) -> terminalez_pb2.ServerUpdate:
     """Gets data from the queue. Returns None if the iterator is exhausted."""
-    return await queue.get()
+    return await data_queue.get()
 
 async def send_message(stream: grpc.aio.StreamStreamCall, message: terminalez_pb2.ClientUpdate):
     try:

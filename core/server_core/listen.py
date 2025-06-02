@@ -25,11 +25,13 @@ async def root():
     return {"message": "Hello from FastAPI!"}
 
 
-@app.websocket("/ws/{session_id}")
+@app.websocket("/api/s/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     try:
         # Acknowledge the websocket connection and upgrade from HTTP to WebSocket
         await websocket.accept()
+
+        logger.info(f"WebSocket connection established with session ID: {session_id}")
 
         # Connect to the session
         await get_session_ws(name=session_id,
@@ -60,7 +62,7 @@ async def serve_fastapi():
     # Create a FastAPI server
     config = uvicorn.Config(
         app = app,
-        host = "0.0.0.0",
+        host = "[::]",
         port = 8000,
         loop = "asyncio",
     )
