@@ -349,13 +349,27 @@ async def send_buffered_server_updates(session: Session) -> terminalez_pb2.Serve
 
 async def consume_iterator(iterator: AsyncIterator[terminalez_pb2.ClientUpdate],
                             requests_queue: asyncio.Queue) -> None:
-    """Consumes the async iterator and puts items into the queue.
+    """Consumes the async iterator and puts items into the queue with backpressure control.
     Only this function will access the iterator directly."""
+    
+    # Backpressure configuration for gRPC stream
+    MAX_QUEUE_SIZE = 200  # Maximum messages before applying backpressure
+    BACKPRESSURE_DELAY = 0.005  # Delay when queue is getting full
+    
     try:
         while True:
             try:
+                # Apply backpressure if queue is getting full
+                if requests_queue.qsize() >= MAX_QUEUE_SIZE:
+                    logger.warning(f"gRPC requests queue is full ({requests_queue.qsize()}), applying backpressure")
+                    await asyncio.sleep(BACKPRESSURE_DELAY)
+
+                # Get the next item from the iterator
                 item = await iterator.__anext__()
-                await requests_queue.put(item)
+
+                # Use non-blocking put to avoid hanging
+                requests_queue.put_nowait(item)
+
             except StopAsyncIteration:
                 logger.info("Client has closed the stream (StopAsyncIteration).")
                 # Signal that the iterator is exhausted

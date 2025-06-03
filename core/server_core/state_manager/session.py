@@ -200,7 +200,7 @@ class Session:
             # Clean up any tasks created for this shell's chunk subscription
             await task_registry.cancel_context_tasks(shell_context)
 
-    async def add_shell(self, sid: libs.Sid, location: (int, int)):
+    async def add_shell(self, sid: libs.Sid, location: Tuple[int, int]):
         """Add a new shell to the session."""
         shells: Dict[libs.Sid, State] = await self.shells.read()
         if sid in shells:
@@ -255,8 +255,7 @@ class Session:
         shells: Dict[libs.Sid, State] = await self.shells.read()
         shell: State = shells.get(sid)
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"Adding data to shell {sid.value}, seq={seq}, shell.seq_num={shell.seq_num}, len(data)={len(data)}")
+        logger.info(f"Adding data to shell {sid.value}, seq={seq}, shell.seq_num={shell.seq_num}, len(data)={len(data)}")
 
         async with shell.state_lock:
             # Case 1: Handle data that arrives with sequence numbers ahead of current state
@@ -330,6 +329,29 @@ class Session:
             await self.users.release_write()
         else:
             raise KeyError(f"cannot update user with id={uid}, does not exist")
+
+    async def send_chat_message(self, uid: libs.Uid, message: str):
+        """
+        Send a chat message from a user to all clients in the session.
+
+        Args:
+            uid (libs.Uid): The unique identifier of the user sending the message.
+            message (str): The chat message to send.
+
+        Raises:
+            KeyError: If the user with the given UID does not exist.
+        """
+        users_data: web_protocol_pb2.WsServer.Users = await self.users.read()
+        if uid.value not in users_data.users:
+            raise KeyError(f"cannot send message from user with id={uid}, does not exist")
+
+        chat_message = web_protocol_pb2.WsServer.ChatBroadcast(
+            user_id=uid.value,
+            message=message,
+            user_name=users_data.users[uid.value].name
+        )
+        await self.broadcaster.broadcast(web_protocol_pb2.WsServer(chat_broadcast=chat_message))
+
 
     async def user_scope(self, uid: libs.Uid) -> None:
         """

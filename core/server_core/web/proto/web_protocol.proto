@@ -82,6 +82,13 @@ message WsServer {
     string message = 1;
   }
 
+  // Broadcast a chat message to all users in the session.
+  message ChatBroadcast {
+    int32 user_id = 1;   // Unique identifier for the user who sent the message
+    string message = 2;  // The chat message content
+    string user_name = 3; // Name of the user who sent the message
+  }
+
 
   oneof server_message {
     Hello hello = 1;
@@ -92,6 +99,7 @@ message WsServer {
     ShellLatency shell_latency = 6;
     Pong pong = 7;
     Error error = 8;
+    ChatBroadcast chat_broadcast = 9;
   }
 }
 
@@ -147,9 +155,9 @@ message WsClient{
     int64 timestamp = 1;
   }
 
-  // Response from server message, after sending the initial hello message
-  message ServerResHello {
-    int32 user_id = 1;        // Unique identifier for a user within the session
+  // Send a chat group messages to the server
+  message ChatMessage {
+    string message = 1;  // The chat message content
   }
 
 
@@ -163,6 +171,6 @@ message WsClient{
     Data data = 7;
     Subscribe subscribe = 8;
     Ping ping = 9;
-    ServerResHello server_res_hello = 10;
+    ChatMessage chat_message = 10;
   }
 }

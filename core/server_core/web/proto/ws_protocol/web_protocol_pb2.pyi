@@ -37,7 +37,7 @@ class WsCursor(_message.Message):
     def __init__(self, x: _Optional[int] = ..., y: _Optional[int] = ...) -> None: ...
 
 class WsServer(_message.Message):
-    __slots__ = ("hello", "users", "user_diff", "shells", "chunks", "shell_latency", "pong", "error")
+    __slots__ = ("hello", "users", "user_diff", "shells", "chunks", "shell_latency", "pong", "error", "chat_broadcast")
     class Hello(_message.Message):
         __slots__ = ("user_id", "metadata")
         USER_ID_FIELD_NUMBER: _ClassVar[int]
@@ -110,6 +110,15 @@ class WsServer(_message.Message):
         MESSAGE_FIELD_NUMBER: _ClassVar[int]
         message: str
         def __init__(self, message: _Optional[str] = ...) -> None: ...
+    class ChatBroadcast(_message.Message):
+        __slots__ = ("user_id", "message", "user_name")
+        USER_ID_FIELD_NUMBER: _ClassVar[int]
+        MESSAGE_FIELD_NUMBER: _ClassVar[int]
+        USER_NAME_FIELD_NUMBER: _ClassVar[int]
+        user_id: int
+        message: str
+        user_name: str
+        def __init__(self, user_id: _Optional[int] = ..., message: _Optional[str] = ..., user_name: _Optional[str] = ...) -> None: ...
     HELLO_FIELD_NUMBER: _ClassVar[int]
     USERS_FIELD_NUMBER: _ClassVar[int]
     USER_DIFF_FIELD_NUMBER: _ClassVar[int]
@@ -118,6 +127,7 @@ class WsServer(_message.Message):
     SHELL_LATENCY_FIELD_NUMBER: _ClassVar[int]
     PONG_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
+    CHAT_BROADCAST_FIELD_NUMBER: _ClassVar[int]
     hello: WsServer.Hello
     users: WsServer.Users
     user_diff: WsServer.UserDiff
@@ -126,10 +136,11 @@ class WsServer(_message.Message):
     shell_latency: WsServer.ShellLatency
     pong: WsServer.Pong
     error: WsServer.Error
-    def __init__(self, hello: _Optional[_Union[WsServer.Hello, _Mapping]] = ..., users: _Optional[_Union[WsServer.Users, _Mapping]] = ..., user_diff: _Optional[_Union[WsServer.UserDiff, _Mapping]] = ..., shells: _Optional[_Union[WsServer.Shells, _Mapping]] = ..., chunks: _Optional[_Union[WsServer.Chunks, _Mapping]] = ..., shell_latency: _Optional[_Union[WsServer.ShellLatency, _Mapping]] = ..., pong: _Optional[_Union[WsServer.Pong, _Mapping]] = ..., error: _Optional[_Union[WsServer.Error, _Mapping]] = ...) -> None: ...
+    chat_broadcast: WsServer.ChatBroadcast
+    def __init__(self, hello: _Optional[_Union[WsServer.Hello, _Mapping]] = ..., users: _Optional[_Union[WsServer.Users, _Mapping]] = ..., user_diff: _Optional[_Union[WsServer.UserDiff, _Mapping]] = ..., shells: _Optional[_Union[WsServer.Shells, _Mapping]] = ..., chunks: _Optional[_Union[WsServer.Chunks, _Mapping]] = ..., shell_latency: _Optional[_Union[WsServer.ShellLatency, _Mapping]] = ..., pong: _Optional[_Union[WsServer.Pong, _Mapping]] = ..., error: _Optional[_Union[WsServer.Error, _Mapping]] = ..., chat_broadcast: _Optional[_Union[WsServer.ChatBroadcast, _Mapping]] = ...) -> None: ...
 
 class WsClient(_message.Message):
-    __slots__ = ("set_name", "set_cursor", "set_focus", "create", "close", "move", "data", "subscribe", "ping", "server_res_hello")
+    __slots__ = ("set_name", "set_cursor", "set_focus", "create", "close", "move", "data", "subscribe", "ping", "chat_message")
     class SetName(_message.Message):
         __slots__ = ("name",)
         NAME_FIELD_NUMBER: _ClassVar[int]
@@ -187,11 +198,11 @@ class WsClient(_message.Message):
         TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
         timestamp: int
         def __init__(self, timestamp: _Optional[int] = ...) -> None: ...
-    class ServerResHello(_message.Message):
-        __slots__ = ("user_id",)
-        USER_ID_FIELD_NUMBER: _ClassVar[int]
-        user_id: int
-        def __init__(self, user_id: _Optional[int] = ...) -> None: ...
+    class ChatMessage(_message.Message):
+        __slots__ = ("message",)
+        MESSAGE_FIELD_NUMBER: _ClassVar[int]
+        message: str
+        def __init__(self, message: _Optional[str] = ...) -> None: ...
     SET_NAME_FIELD_NUMBER: _ClassVar[int]
     SET_CURSOR_FIELD_NUMBER: _ClassVar[int]
     SET_FOCUS_FIELD_NUMBER: _ClassVar[int]
@@ -201,7 +212,7 @@ class WsClient(_message.Message):
     DATA_FIELD_NUMBER: _ClassVar[int]
     SUBSCRIBE_FIELD_NUMBER: _ClassVar[int]
     PING_FIELD_NUMBER: _ClassVar[int]
-    SERVER_RES_HELLO_FIELD_NUMBER: _ClassVar[int]
+    CHAT_MESSAGE_FIELD_NUMBER: _ClassVar[int]
     set_name: WsClient.SetName
     set_cursor: WsClient.SetCursor
     set_focus: WsClient.SetFocus
@@ -211,5 +222,5 @@ class WsClient(_message.Message):
     data: WsClient.Data
     subscribe: WsClient.Subscribe
     ping: WsClient.Ping
-    server_res_hello: WsClient.ServerResHello
-    def __init__(self, set_name: _Optional[_Union[WsClient.SetName, _Mapping]] = ..., set_cursor: _Optional[_Union[WsClient.SetCursor, _Mapping]] = ..., set_focus: _Optional[_Union[WsClient.SetFocus, _Mapping]] = ..., create: _Optional[_Union[WsClient.Create, _Mapping]] = ..., close: _Optional[_Union[WsClient.Close, _Mapping]] = ..., move: _Optional[_Union[WsClient.Move, _Mapping]] = ..., data: _Optional[_Union[WsClient.Data, _Mapping]] = ..., subscribe: _Optional[_Union[WsClient.Subscribe, _Mapping]] = ..., ping: _Optional[_Union[WsClient.Ping, _Mapping]] = ..., server_res_hello: _Optional[_Union[WsClient.ServerResHello, _Mapping]] = ...) -> None: ...
+    chat_message: WsClient.ChatMessage
+    def __init__(self, set_name: _Optional[_Union[WsClient.SetName, _Mapping]] = ..., set_cursor: _Optional[_Union[WsClient.SetCursor, _Mapping]] = ..., set_focus: _Optional[_Union[WsClient.SetFocus, _Mapping]] = ..., create: _Optional[_Union[WsClient.Create, _Mapping]] = ..., close: _Optional[_Union[WsClient.Close, _Mapping]] = ..., move: _Optional[_Union[WsClient.Move, _Mapping]] = ..., data: _Optional[_Union[WsClient.Data, _Mapping]] = ..., subscribe: _Optional[_Union[WsClient.Subscribe, _Mapping]] = ..., ping: _Optional[_Union[WsClient.Ping, _Mapping]] = ..., chat_message: _Optional[_Union[WsClient.ChatMessage, _Mapping]] = ...) -> None: ...

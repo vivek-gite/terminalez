@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from typing import Dict, Set, Optional, List
-import weakref
 
 logger = logging.getLogger(__name__)
 

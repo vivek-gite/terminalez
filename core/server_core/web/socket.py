@@ -158,17 +158,36 @@ async def shell_chunks_handler(chunks_queue: asyncio.Queue[web_protocol_pb2.WsSe
 
 async def get_websocket_stream_data(websocket: WebSocket, websocket_data_queue: asyncio.Queue[web_protocol_pb2.WsClient | None]) -> None:
     """
-    Continuously receives data from a WebSocket and places it in a queue.
+    Continuously receives data from a WebSocket and places it in a queue with backpressure control.
     
     This function handles WebSocket disconnection gracefully by putting None in the queue
-    and raising an exception to signal the parent task.
+    and raising an exception to signal the parent task. Implements backpressure to prevent
+    overwhelming the server with rapid input from xterm.js.
     
     Args:
         websocket (WebSocket): The WebSocket connection to receive from
         websocket_data_queue (asyncio.Queue): Queue to store received messages
     """
+    # Backpressure configuration
+    MAX_QUEUE_SIZE = 1000  # Maximum messages in queue before applying backpressure
+    BACKPRESSURE_DELAY = 0.01  # Delay in seconds when queue is full
+    
     try:
         while True:
+            # Check queue size for backpressure
+            if websocket_data_queue.qsize() >= MAX_QUEUE_SIZE:
+                logger.warning(f"WebSocket queue is full ({websocket_data_queue.qsize()} items), applying backpressure")
+                # Small delay to slow down incoming data processing
+                await asyncio.sleep(BACKPRESSURE_DELAY)
+                
+                # If queue is still full after delay, drop the oldest message
+                if websocket_data_queue.qsize() >= MAX_QUEUE_SIZE:
+                    try:
+                        dropped_msg = websocket_data_queue.get_nowait()
+                        logger.warning("Dropped message due to backpressure")
+                    except asyncio.QueueEmpty:
+                        pass
+            
             # Use our improved recv function with timeout
             data = await recv(websocket)
             
@@ -179,8 +198,17 @@ async def get_websocket_stream_data(websocket: WebSocket, websocket_data_queue: 
                 logger.info("WebSocket connection closed, stopping data stream")
                 break
                 
-            # Otherwise, put the data in the queue
-            websocket_data_queue.put_nowait(data)
+            # Put data in queue with backpressure-aware method
+            try:
+                websocket_data_queue.put_nowait(data)
+            except asyncio.QueueFull:
+                # If queue is full, drop the oldest message and add the new one
+                try:
+                    websocket_data_queue.get_nowait()
+                    websocket_data_queue.put_nowait(data)
+                    logger.warning("Applied backpressure: dropped old message for new one")
+                except asyncio.QueueEmpty:
+                    websocket_data_queue.put_nowait(data)
             
     except Exception as e:
         # Log the exception and put None in the queue to signal disconnection
@@ -243,14 +271,13 @@ async def handle_socket(websocket: WebSocket, session: Session):
         broadcast_stream: asyncio.Queue[web_protocol_pb2.WsServer] = session.subscribe_broadcast()
 
         users: web_protocol_pb2.WsServer.Users = await session.list_users()
-
         await send(websocket=websocket,
                 message= web_protocol_pb2.WsServer(users=users))
 
         subscribed = set()
 
-        # Queue to store the chunks of format (sid, seq_num, chunks)
-        chunks_queue: asyncio.Queue[web_protocol_pb2.WsServer.Chunks] = asyncio.Queue()
+        # Queue to store the chunks of format (sid, seq_num, chunks) with size limit for backpressure
+        chunks_queue: asyncio.Queue[web_protocol_pb2.WsServer.Chunks] = asyncio.Queue(maxsize=100)
 
         # Subscribe to shell updates for the session.
         shells_stream = session.subscribe_shells()
@@ -274,10 +301,9 @@ async def handle_socket(websocket: WebSocket, session: Session):
             shell_chunks_handler(chunks_queue, websocket),
             name="shell_chunks_handler"
         )
-        background_tasks.append(chunks_task)
-
-        # Create a queue to store incoming websocket data from the client.
-        websocket_data_queue: asyncio.Queue[web_protocol_pb2.WsClient | None] = asyncio.Queue()
+        background_tasks.append(chunks_task)        
+        # Create a queue to store incoming websocket data from the client with size limit for backpressure
+        websocket_data_queue: asyncio.Queue[web_protocol_pb2.WsClient | None] = asyncio.Queue(maxsize=1000)
 
         # Start a background task to receive data from the websocket and put it into the queue.
         websocket_stream_task = asyncio.create_task(
@@ -367,6 +393,17 @@ async def handle_socket(websocket: WebSocket, session: Session):
                 case "data":
                     recv_data: web_protocol_pb2.WsClient.Data = ws_client_message.data
 
+                    # Implement backpressure for terminal input data
+                    if session.buffer_message.qsize() > 50:  # Configurable threshold
+                        logger.warning(f"Session buffer queue is large ({session.buffer_message.qsize()}), applying input throttling")
+                        # Small delay to prevent overwhelming the terminal backend
+                        await asyncio.sleep(0.005)
+                        
+                        # If queue is still large, skip this input to prevent system overload
+                        if session.buffer_message.qsize() > 100:
+                            logger.warning("Dropping terminal input due to severe backpressure")
+                            continue
+
                     terminal_input = terminalez_pb2.TerminalInput(
                         shell_id=recv_data.shell,
                         data=recv_data.data,
@@ -375,7 +412,17 @@ async def handle_socket(websocket: WebSocket, session: Session):
 
                     print(f"Terminal Input: \n{terminal_input}")
 
-                    await session.buffer_message.put(terminalez_pb2.ServerUpdate(terminal_input=terminal_input))
+                    try:
+                        # Use put_nowait with error handling instead of blocking put
+                        session.buffer_message.put_nowait(terminalez_pb2.ServerUpdate(terminal_input=terminal_input))
+                    except asyncio.QueueFull:
+                        logger.warning("Session buffer queue full, dropping terminal input")
+                        # Optionally send error back to client
+                        await send(websocket=websocket,
+                                message=web_protocol_pb2.WsServer(
+                                    error=web_protocol_pb2.WsServer.Error(
+                                        message="Server overloaded, please slow down typing")))
+                        continue
 
                 case "subscribe":
                     recv_data: web_protocol_pb2.WsClient.Subscribe = ws_client_message.subscribe
@@ -417,6 +464,11 @@ async def handle_socket(websocket: WebSocket, session: Session):
                             message=web_protocol_pb2.WsServer(
                                 pong=web_protocol_pb2.WsServer.Pong(
                                     timestamp=recv_data.timestamp)))
+
+                case "chat_message":
+                    recv_data: web_protocol_pb2.WsClient.ChatMessage = ws_client_message.chat_message
+                    await session.send_chat_message(user_id, recv_data.message)
+
 
     except Exception as e:
         logger.exception(f"Error in handle_socket: {e}")
