@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Callable, AsyncGenerator
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional
@@ -345,10 +346,14 @@ class Session:
         if uid.value not in users_data.users:
             raise KeyError(f"cannot send message from user with id={uid}, does not exist")
 
+        now = datetime.now(timezone.utc)
+        timestamp = int(now.timestamp())
+
         chat_message = web_protocol_pb2.WsServer.ChatBroadcast(
             user_id=uid.value,
             message=message,
-            user_name=users_data.users[uid.value].name
+            user_name=users_data.users[uid.value].name,
+            sent_at=timestamp
         )
         await self.broadcaster.broadcast(web_protocol_pb2.WsServer(chat_broadcast=chat_message))
 

@@ -107,7 +107,7 @@ class ConPTyTerminal:
         """Initialize the terminal process and start async tasks"""
 
         try:
-            self.process:conpty.RealtimeConPtyProcess = conpty.spawn_realtime(
+            self.process: conpty.RealtimeConPtyProcess = conpty.spawn_realtime(
                 self.command,
                 console_size=(80, 24),
                 buffer_size=self.buffer_size)

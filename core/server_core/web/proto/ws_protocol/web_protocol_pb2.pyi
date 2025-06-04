@@ -111,14 +111,16 @@ class WsServer(_message.Message):
         message: str
         def __init__(self, message: _Optional[str] = ...) -> None: ...
     class ChatBroadcast(_message.Message):
-        __slots__ = ("user_id", "message", "user_name")
+        __slots__ = ("user_id", "message", "user_name", "sent_at")
         USER_ID_FIELD_NUMBER: _ClassVar[int]
         MESSAGE_FIELD_NUMBER: _ClassVar[int]
         USER_NAME_FIELD_NUMBER: _ClassVar[int]
+        SENT_AT_FIELD_NUMBER: _ClassVar[int]
         user_id: int
         message: str
         user_name: str
-        def __init__(self, user_id: _Optional[int] = ..., message: _Optional[str] = ..., user_name: _Optional[str] = ...) -> None: ...
+        sent_at: int
+        def __init__(self, user_id: _Optional[int] = ..., message: _Optional[str] = ..., user_name: _Optional[str] = ..., sent_at: _Optional[int] = ...) -> None: ...
     HELLO_FIELD_NUMBER: _ClassVar[int]
     USERS_FIELD_NUMBER: _ClassVar[int]
     USER_DIFF_FIELD_NUMBER: _ClassVar[int]

@@ -87,6 +87,7 @@ message WsServer {
     int32 user_id = 1;   // Unique identifier for the user who sent the message
     string message = 2;  // The chat message content
     string user_name = 3; // Name of the user who sent the message
+    int64 sent_at = 4;   // Timestamp when the message was sent (Unix timestamp in milliseconds)
   }
 
 
