@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timezone
 from typing import Callable, AsyncGenerator
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 
 from core.comms_core.proto.identifiers import libs
 from core.comms_core.utils.shutdown import Shutdown
@@ -136,33 +136,31 @@ class Session:
         try:
             while True:
                 shells: Dict[libs.Sid, State] = await self.shells.read()
-                match shells.get(sid):
-                    case None:
-                        return
-                    case state:
-                        if state.closed:
-                            return
-                        shell: State = state
+                shell_state = shells.get(sid)
+                
+                if shell_state is None or shell_state.closed:
+                    logger.debug(f"Shell {sid.value} not found or closed, ending chunk subscription")
+                    return
 
-                # print(f"subscribing to shell {sid.value} with shell data \n{shell.data}")
-                print(f"subscribing to shell {sid.value}")
+                logger.debug(f"Subscribing to shell {sid.value}")
 
-                seq_num = shell.byte_offset
+                seq_num = shell_state.byte_offset
                 chunks = []
-                current_chunks = shell.chunk_offset + len(shell.data)
+                current_chunks = shell_state.chunk_offset + len(shell_state.data)
+                
                 if chunk_num < current_chunks:
-                    start = max(0, chunk_num - shell.chunk_offset)
-                    seq_num += sum(len(x) for x in shell.data[:start])
-                    chunks = shell.data[start:]
+                    start = max(0, chunk_num - shell_state.chunk_offset)
+                    seq_num += sum(len(x) for x in shell_state.data[:start])
+                    chunks = shell_state.data[start:]
                     chunk_num = current_chunks
 
-                if len(chunks) > 0:
+                if chunks:
                     yield seq_num, chunks
 
                 try:
                     # Create tasks with proper tracking
                     notify_task = task_registry.create_task(
-                        self.notification_wait(shell.notify),
+                        self.notification_wait(shell_state.notify),
                         name=f"notify_wait_{sid.value}",
                         context=shell_context
                     )
@@ -178,28 +176,38 @@ class Session:
                         return_when=asyncio.FIRST_COMPLETED
                     )
 
-                    # Cancel pending tasks
+                    # Cancel pending tasks immediately
                     for task in pending:
                         task.cancel()
+                        try:
+                            await task
+                        except asyncio.CancelledError:
+                            pass
 
-                    print(f"subscribe_chunks done tasks: {done.pop().get_name()}")
+                    # Process completed task
+                    completed_task = done.pop()
+                    logger.debug(f"subscribe_chunks completed task: {completed_task.get_name()}")
 
                     # Check if we need to terminate
-                    if done_task := next((t for t in done if t.get_name().startswith("termination")), None):
-                        if done_task.result() == "terminated":
+                    if completed_task.get_name().startswith("termination"):
+                        if completed_task.result() == "terminated":
+                            logger.debug(f"Session terminated, ending chunk subscription for shell {sid.value}")
                             return
 
                 except asyncio.CancelledError:
                     logger.info(f"Shell chunk subscription for {sid.value} was cancelled")
                     return
                 except Exception as e:
-                    logger.error(f"Error in subscribe_chunks for shell {sid.value}: {e}")
-                    # Continue the loop unless it was a critical error
-                    if str(e).lower().find("critical") >= 0:
+                    logger.exception(f"Error in subscribe_chunks for shell {sid.value}: {e}")
+                    # Continue the loop unless it's a critical error
+                    if "critical" in str(e).lower():
                         return
         finally:
             # Clean up any tasks created for this shell's chunk subscription
-            await task_registry.cancel_context_tasks(shell_context)
+            try:
+                await task_registry.cancel_context_tasks(shell_context)
+            except Exception as e:
+                logger.warning(f"Error cleaning up context tasks for shell {sid.value}: {e}")
 
     async def add_shell(self, sid: libs.Sid, location: Tuple[int, int]):
         """Add a new shell to the session."""
@@ -223,19 +231,33 @@ class Session:
     async def close_shell(self, sid: libs.Sid):
         """ Close a shell in the session."""
         shells: Dict[libs.Sid, State] = await self.shells.read()
-        match shells.get(sid):
-            case None:
-                logger.info(f"cannot close shell with id={sid}, does not exist")
-                return
-            case state if not state.closed:
-                async with state.state_lock:
-                    state.closed = True
+        shell = shells.get(sid)
+        
+        if shell is None:
+            logger.info(f"Cannot close shell with id={sid}, does not exist")
+            return
+            
+        if shell.closed:
+            logger.debug(f"Shell {sid.value} is already closed")
+            return
 
+        # Mark shell as closed and notify waiting consumers
+        async with shell.state_lock:
+            shell.closed = True
+        await shell.notify.notify_all()
+
+        try:
+            shells = await self.shells.read()  # Get fresh reference
+
+            # Remove shell from tracking
+            await self.shells.acquire_write()
+
+            if sid in shells:
                 del shells[sid]
-                await self.shells.write(shells)
+        finally:
+            await self.shells.release_write()
 
-                await state.notify.notify_all()
-
+        # Update shells list for clients
         updated_shells: web_protocol_pb2.WsServer.Shells = self.source.get_latest()
         await self.source.flush_receivers()
 
@@ -243,20 +265,17 @@ class Session:
             del updated_shells.shells[sid.value]
 
         await self.source.send(updated_shells)
-
         await self.sync_now()
-        
+
     async def add_data(self, sid: libs.Sid, data: bytes, seq: int):
         """
-        Add data to a shell.
-        
-        This method handles different sequence number scenarios to ensure data integrity 
-        during rapid typing:
-        
+        Add data to a shell with optimized sequence number handling.
+
+        This method efficiently handles different sequence number scenarios:
         1. Future packets with sequence numbers ahead of current state
         2. Overlapping packets that contain some new data
         3. Old data that can be safely ignored
-        
+
         Args:
             sid (libs.Sid): The shell ID to add data to
             data (bytes): The data to add
@@ -265,53 +284,73 @@ class Session:
         shells: Dict[libs.Sid, State] = await self.shells.read()
         shell: State = shells.get(sid)
 
-        logger.info(f"Adding data to shell {sid.value}, seq={seq}, shell.seq_num={shell.seq_num}, len(data)={len(data)}")
+        if not shell:
+            logger.warning(f"Attempted to add data to non-existent shell {sid.value}")
+            return
+
+        data_len = len(data)
+        if data_len == 0:
+            return  # No data to process
+
+        logger.debug(f"Adding data to shell {sid.value}, seq={seq}, shell.seq_num={shell.seq_num}, len(data)={data_len}")
 
         async with shell.state_lock:
-            # Case 1: Handle data that arrives with sequence numbers ahead of current state
-            # During rapid typing, this ensures we don't drop data
+            data_end = seq + data_len
+
+            # Case 1: Completely old data - ignore
+            if data_end <= shell.seq_num:
+                logger.debug(f"Ignoring old data: seq={seq}, len={data_len}, current seq_num={shell.seq_num}")
+                return
+
+            # Case 2: Future packet or partially overlapping data
             if seq > shell.seq_num:
-                # This is a future packet, there's a gap in sequence numbers
-                logger.info(f"Sequence gap detected: received seq={seq}, current seq_num={shell.seq_num}. Accepting new data.")
-                # Accept the new data and update sequence number
+                # Future packet - accept as-is (gap handling)
+                logger.debug(f"Sequence gap detected: received seq={seq}, current seq_num={shell.seq_num}. Accepting new data.")
                 shell.data.append(data)
-                shell.seq_num = seq + len(data)
-                await shell.notify.notify_all()
-            # Case 2: Handle normal overlapping data (original condition)
-            elif seq <= shell.seq_num and (seq + len(data) > shell.seq_num):
-                start = shell.seq_num - seq
-                segment = data[start:]
-                
-                # Only process if there's actual new data
-                if len(segment) > 0:
-                    shell.seq_num += len(segment)
-                    shell.data.append(segment)
+                shell.seq_num = data_end
+            else:
+                # Partially overlapping data - extract new portion
+                start_offset = shell.seq_num - seq
+                if start_offset < data_len:
+                    new_data = data[start_offset:]
+                    shell.data.append(new_data)
+                    shell.seq_num += len(new_data)
+                else:
+                    # No new data
+                    return
 
-                    # Manage storage limits
-                    stored_bytes = shell.seq_num - shell.byte_offset
-                    if stored_bytes > SHELL_STORED_BYTES:
-                        offset = 0
-                        # Calculate how many chunks need to be pruned
-                        while offset < len(shell.data) and stored_bytes > SHELL_STORED_BYTES:
-                            chunk_size = len(shell.data[offset])
-                            stored_bytes -= chunk_size
-                            shell.chunk_offset += 1
-                            shell.byte_offset += chunk_size
-                            offset += 1
+            # Manage storage limits efficiently
+            self._manage_shell_storage(shell)
 
-                        # Remove pruned chunks
-                        if offset > 0:
-                            del shell.data[:offset]
-
-                    # Notify any waiting consumers that new data is available
-                    await shell.notify.notify_all()
-            # Case 3: Completely old data that we've already processed
-            elif seq + len(data) <= shell.seq_num:
-                logger.debug(f"Ignoring old data: seq={seq}, len={len(data)}, current seq_num={shell.seq_num}")
-                # No processing needed as this data is already handled
+            # Notify waiting consumers
+            await shell.notify.notify_all()
 
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(f"Completed add_data for shell {sid.value}, new seq_num={shell.seq_num}")
+
+    @staticmethod
+    def _manage_shell_storage(shell: State):
+        """Efficiently manage shell storage by pruning old data chunks."""
+        stored_bytes = shell.seq_num - shell.byte_offset
+        if stored_bytes <= SHELL_STORED_BYTES:
+            return
+
+        offset = 0
+        bytes_to_remove = stored_bytes - SHELL_STORED_BYTES
+
+        # Calculate how many chunks to remove
+        while offset < len(shell.data) and bytes_to_remove > 0:
+            chunk_size = len(shell.data[offset])
+            if chunk_size <= bytes_to_remove:
+                bytes_to_remove -= chunk_size
+                shell.chunk_offset += 1
+                shell.byte_offset += chunk_size
+                offset += 1
+            else:
+                break
+        # Remove pruned chunks in batch
+        if offset > 0:
+            del shell.data[:offset]
 
     async def list_users(self) -> web_protocol_pb2.WsServer.Users:
         """List all users in the session."""
@@ -321,12 +360,21 @@ class Session:
     async def update_users(self, uid: libs.Uid, callback: Callable[[web_protocol_pb2.WsUser], None]):
         """ Update a user in the session by ID, applying a callback to the user object and broadcasting the change."""
         users_data: web_protocol_pb2.WsServer.Users = await self.users.read()
-        await self.users.acquire_write()
+        
+        # Check if user exists before acquiring write lock
+        if uid.value not in users_data.users:
+            raise KeyError(f"cannot update user with id={uid}, does not exist")
 
-        if uid.value in users_data.users:
+        try:
+            # Re-check after acquiring lock in case of concurrent modifications
+            users_data = await self.users.read()
+            if uid.value not in users_data.users:
+                raise KeyError(f"cannot update user with id={uid}, does not exist")
+            
+            await self.users.acquire_write()
+
             ws_user: web_protocol_pb2.WsUser = users_data.users.get(uid.value)
             callback(ws_user)
-
             users_data.users[uid.value].CopyFrom(ws_user)
 
             # Broadcast the details of the updated user to all clients
@@ -335,10 +383,8 @@ class Session:
                     user=ws_user,
                     action=web_protocol_pb2.WsServer.UserDiff.ActionType.CHANGED)
             await self.broadcaster.broadcast(web_protocol_pb2.WsServer(user_diff=user_diff))
-
+        finally:
             await self.users.release_write()
-        else:
-            raise KeyError(f"cannot update user with id={uid}, does not exist")
 
     async def send_chat_message(self, uid: libs.Uid, message: str):
         """
