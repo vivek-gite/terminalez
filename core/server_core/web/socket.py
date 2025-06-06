@@ -118,10 +118,6 @@ async def shell_stream_handler(shell_stream: WatchChannel.WatchReceiver, websock
 
         print(f"shell_stream_handler: \n{result}")
 
-        if len(result.shells) == 0:
-            # If the stream is empty, then it's the first time we are receiving the data
-            continue
-
         await send(websocket=websocket,
                    message=web_protocol_pb2.WsServer(shells=result)
                    )

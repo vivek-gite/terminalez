@@ -22,6 +22,22 @@ class WatchChannel:
     def get_latest(self):
         return self._value
 
+    async def flush_receivers(self):
+        """
+        Remove all pending items from each receiver queue.
+
+        This method iterates through all registered receiver queues and
+        empties them by retrieving and marking each item as done. It is
+        useful for clearing out any unprocessed messages.
+        """
+        print("Flushing all receivers...")
+        for queue in self._receivers:
+            while not queue.empty():
+                try:
+                    print(queue.get_nowait())
+                    queue.task_done()
+                except asyncio.QueueEmpty:
+                    continue
 
     class WatchReceiver:
         def __init__(self, queue: asyncio.Queue, initial_value: Any):

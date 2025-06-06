@@ -454,7 +454,7 @@ async def handle_update(result_queue: asyncio.Queue, session: Session, update: t
                     await session.close_shell(sid=sid)
                 except Exception as e:
                     await send_error(result_queue, f"Error closing shell: {str(e)}")
-                    logger.error(f"Error closing shell in handle update: {e}")
+                    logger.exception(f"Error closing shell in handle update: {e}")
 
             case "pong":
                 try:

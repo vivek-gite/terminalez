@@ -225,15 +225,24 @@ class Session:
         shells: Dict[libs.Sid, State] = await self.shells.read()
         match shells.get(sid):
             case None:
-                raise KeyError(f"cannot close shell with id={sid}, does not exist")
+                logger.info(f"cannot close shell with id={sid}, does not exist")
+                return
             case state if not state.closed:
                 async with state.state_lock:
                     state.closed = True
 
+                del shells[sid]
+                await self.shells.write(shells)
+
                 await state.notify.notify_all()
 
-        source = list(filter(lambda t: t[0] != sid, self.source.get_latest()))
-        await self.source.send(source)
+        updated_shells: web_protocol_pb2.WsServer.Shells = self.source.get_latest()
+        await self.source.flush_receivers()
+
+        if sid.value in updated_shells.shells:
+            del updated_shells.shells[sid.value]
+
+        await self.source.send(updated_shells)
 
         await self.sync_now()
         
@@ -422,12 +431,14 @@ class Session:
         """
 
         shells: Dict[libs.Sid, State] = await self.shells.read()
-        if sid not in shells:
-            raise ValueError(f"Shell does not exists with id={sid}")
+        # if sid not in shells:
+        #     raise ValueError(f"Shell does not exists with id={sid}")
         await self.shells.acquire_write()
         sources: web_protocol_pb2.WsServer.Shells = self.source.get_latest()
 
-        sources.shells[sid.value].CopyFrom(winsize)
+        if sid in shells:
+            # Update the existing shell's window size
+            sources.shells[sid.value].CopyFrom(winsize)
 
         await self.source.send(sources)
         await self.shells.release_write()
