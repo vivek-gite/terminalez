@@ -548,6 +548,6 @@ class Session:
                 await asyncio.wait(self.background_tasks, timeout=5.0)
             except Exception as e:
                 logger.warning(f"Error waiting for legacy tasks to cancel: {e}")
-        
+
         # Finally, shut down the session
         await self.shutdown.shutdown()

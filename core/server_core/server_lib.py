@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class Server:
     def __init__(self):
         from core.server_core.listen import init_server_state
-        
+
         self.state = ServerState()
         self.shutdown = Shutdown()
         init_server_state(self.state)

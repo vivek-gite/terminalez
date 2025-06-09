@@ -107,7 +107,8 @@ async def checkpoint_capture(session: Session):
     encrypted_session_data.available_shells.extend(session.metadata.available_shells)
 
     serialized_data: bytes = encrypted_session_data.SerializeToString()
-    return serialized_data
+    compressed_data: bytes = compress_data(serialized_data)
+    return compressed_data
 
 
 async def checkpoint_restore(data: bytes, session: Session):

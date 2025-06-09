@@ -81,8 +81,8 @@ async def get_session_ws(name: str, websocket: WebSocket, server_state: ServerSt
             logger.exception(f"Websocket handler failed closing session {name} due to {e}")
             raise
     except Exception as e:
-        logger.exception(f"Session with name: {name} not found due to {e}")
         error_message = f"Session with name: {name} not found due to {e}"
+        logger.exception(error_message)
         await send(websocket=websocket,
                   message=web_protocol_pb2.WsServer(
                       error=web_protocol_pb2.WsServer.Error(
@@ -426,7 +426,7 @@ async def handle_socket(websocket: WebSocket, session: Session):
                     print(f"Subscribe: \n{recv_data}")
                     if recv_data.shell not in subscribed:
                         subscribed.add(recv_data.shell)
-                        
+
                         async def send_chunks(shell_id: libs.Sid):
                             try:
                                 stream = session.subscribe_chunks(

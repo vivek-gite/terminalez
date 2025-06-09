@@ -115,7 +115,7 @@ class SessionMesh:
                 async with self.get_redis_client() as client:
                     async with client.pipeline(transaction=True) as pipe: # type: redis.Redis.pipeline
                         await pipe.setex(name=f"mesh:{name}:checkpoint_session", value=checkpoint_session, time= TIME_TO_LIVE)
-                        await pipe.setex(name=f"mesh:{name}:parent", value=session.metadata.name, time= TIME_TO_LIVE)
+                        await pipe.setex(name=f"mesh:{name}:parent", value=session.metadata.name, time=TIME_TO_LIVE)
                         await pipe.execute()
             except redis.RedisError as e:
                 logger.exception(f"Redis Error in periodic_session_sync: {e}")
@@ -132,7 +132,7 @@ class SessionMesh:
             async with client.pipeline(transaction=True) as pipe:
                 await pipe.delete(f"mesh:{name}:checkpoint_session")
                 await pipe.delete(f"mesh:{name}:parent")
-                await pipe.setex(f"mesh:{name}:closed", True, time= TIME_TO_LIVE)
+                await pipe.setex(name=f"mesh:{name}:closed",value=True, time=TIME_TO_LIVE)
 
         await self.broadcast_transfer(name=name)
 
@@ -161,7 +161,7 @@ class SessionMesh:
                 # Listen for new messages and Yield messages to the caller
                 async for message in pubsub.listen():
                     if message['type'] == 'message':
-                        yield message['data'].decode('utf-8')  # Yield each message to the caller
+                        yield message['data']  # Yield each message to the caller
             except redis.RedisError as e:
                 logger.exception(f"Redis Error in subscribe_transfers: {e}")
                 continue
