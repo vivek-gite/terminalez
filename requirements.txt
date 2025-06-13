@@ -1,7 +1,6 @@
 grpcio==1.70.0
 grpcio-tools==1.70.0
 fastapi==0.115.8
-pywin32==308
 hiredis==3.1.0
 redis==5.2.1
 ormsgpack==1.7.0
@@ -9,4 +8,3 @@ zstandard==0.23.0
 protobuf==5.29.3
 uvicorn[standard]==0.34.0
 grpcio-status==1.70.0
-pywinpty==2.0.15
