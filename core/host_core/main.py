@@ -29,7 +29,7 @@ async def big_start():
     name = f"{user_name}@{ip}"
     logger.info(f"Initializing connection with name: {name}")
 
-    client = GrpcClient("https://api.termly.live:50051")
+    client = GrpcClient("[::]:50051")
 
     # Set up the exit handler
     exit_handler = GracefulExitHandler(client)
