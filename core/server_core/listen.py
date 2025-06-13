@@ -25,6 +25,16 @@ async def root():
     return {"message": "Hello from FastAPI!"}
 
 
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "service": "tetrax-backend",
+        "fastapi_port": 8000,
+        "grpc_port": 50051
+    }
+
+
 @app.websocket("/api/s/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     try:
@@ -49,7 +59,7 @@ async def serve_grpc():
     terminalez_pb2_grpc.add_TerminalEzServicer_to_server(servicer=GrpcServer(server_state=server_state),
                                                          server=server)
 
-    listen_addr = '[::]:50051'
+    listen_addr = '0.0.0.0:50051'  # Listen on all IPv4 interfaces
     server.add_insecure_port(listen_addr)
 
     logger.info(f"Starting gRPC server on {listen_addr}")
@@ -61,10 +71,10 @@ async def serve_grpc():
 async def serve_fastapi():
     # Create a FastAPI server
     config = uvicorn.Config(
-        app = app,
-        host = "[::]",
-        port = 8000,
-        loop = "asyncio",
+        app=app,
+        host="0.0.0.0",  # Listen on all IPv4 interfaces (more compatible)
+        port=8000,
+        loop="asyncio"
     )
 
     server = uvicorn.Server(config=config)
