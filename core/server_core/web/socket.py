@@ -246,7 +246,8 @@ async def handle_socket(websocket: WebSocket, session: Session):
                 message=web_protocol_pb2.WsServer(
                     hello=web_protocol_pb2.WsServer.Hello(
                         user_id=user_id.value,
-                        metadata=metadata.name)))
+                        host_name=metadata.name,
+                        available_shells=metadata.available_shells)))
 
         received_data: web_protocol_pb2.WsClient = await recv(websocket)
 

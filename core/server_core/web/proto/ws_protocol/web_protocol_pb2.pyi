@@ -39,12 +39,14 @@ class WsCursor(_message.Message):
 class WsServer(_message.Message):
     __slots__ = ("hello", "users", "user_diff", "shells", "chunks", "shell_latency", "pong", "error", "chat_broadcast")
     class Hello(_message.Message):
-        __slots__ = ("user_id", "metadata")
+        __slots__ = ("user_id", "host_name", "available_shells")
         USER_ID_FIELD_NUMBER: _ClassVar[int]
-        METADATA_FIELD_NUMBER: _ClassVar[int]
+        HOST_NAME_FIELD_NUMBER: _ClassVar[int]
+        AVAILABLE_SHELLS_FIELD_NUMBER: _ClassVar[int]
         user_id: int
-        metadata: str
-        def __init__(self, user_id: _Optional[int] = ..., metadata: _Optional[str] = ...) -> None: ...
+        host_name: str
+        available_shells: _containers.RepeatedScalarFieldContainer[str]
+        def __init__(self, user_id: _Optional[int] = ..., host_name: _Optional[str] = ..., available_shells: _Optional[_Iterable[str]] = ...) -> None: ...
     class Users(_message.Message):
         __slots__ = ("users",)
         class UsersEntry(_message.Message):

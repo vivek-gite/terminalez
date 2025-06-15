@@ -32,7 +32,8 @@ message WsServer {
   message Hello {
     // Unique identifier for a user within the session.
     int32 user_id = 1;
-    string metadata = 2;
+    string host_name = 2; // Name of the user, format: username@hostname
+    repeated string available_shells = 3; // List of shell identifiers available in the session
   }
 
   // A snapshot of all current users in the session.
