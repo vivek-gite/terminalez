@@ -1,14 +1,13 @@
 import asyncio
 import logging
-import queue
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
 import grpc
 import grpc.aio
 from core.comms_core.proto.terminalez import terminalez_pb2_grpc, terminalez_pb2
-from core.host_core.ConPTyRunner import ConPTyRunner
-from core.host_core.ConPTyTerminal import Resize, ShellData, Data, Sync
+from core.host_core.PlatformTerminalRunner import PlatformTerminalRunner
+from core.comms_core.utils.shell_data import Resize, Data, Sync
 from core.host_core.console_handler import ConsoleHandler
 
 logger = logging.getLogger(__name__)
@@ -72,7 +71,7 @@ class GrpcClient:
         try:
             request = terminalez_pb2.InitialConnectionRequest(
                 m_name=machine_name,
-                available_shells=ConPTyRunner.available_terminals_list()
+                available_shells=PlatformTerminalRunner.available_terminals_list()
             )
 
             response = await asyncio.wait_for(

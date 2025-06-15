@@ -3,8 +3,8 @@ import logging
 from typing import Dict, Optional
 
 from core.comms_core.proto.terminalez import terminalez_pb2
-from core.host_core.ConPTyRunner import ConPTyRunner
-from core.host_core.ConPTyTerminal import ShellData
+from core.host_core.PlatformTerminalRunner import PlatformTerminalRunner
+from core.host_core.PlatformTerminalRunner import ShellData
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class ConsoleHandler:
     
     def __init__(self, shells_output_queue: asyncio.Queue[terminalez_pb2.ClientUpdate]):
         # Active terminal tracking
-        self.active_terminals: Dict[int, ConPTyRunner] = {}
+        self.active_terminals: Dict[int, PlatformTerminalRunner] = {}
         self.terminal_writes: Dict[int, asyncio.Queue[ShellData]] = {}
         self.terminal_reads: Dict[int, asyncio.Queue[terminalez_pb2.ClientUpdate]] = {}
         
@@ -60,7 +60,7 @@ class ConsoleHandler:
             
         try:
             # Create terminal with timeout to prevent hanging
-            con_pty_runner = ConPTyRunner()
+            con_pty_runner = PlatformTerminalRunner()
             create_task = asyncio.create_task(con_pty_runner.create_terminal(terminal_path=terminal_path))
             await asyncio.wait_for(create_task, timeout=30.0)
             

@@ -3,7 +3,8 @@ import logging
 import os
 from typing import Optional
 
-from core.host_core.ConPTyTerminal import ShellData, ConPTyTerminal
+from core.host_core.ConPTyTerminal import ConPTyTerminal
+from core.comms_core.utils.shell_data import ShellData
 from core.comms_core.proto.terminalez import terminalez_pb2
 
 logger = logging.getLogger(__name__)

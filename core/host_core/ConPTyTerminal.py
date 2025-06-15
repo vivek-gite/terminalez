@@ -1,41 +1,17 @@
 import asyncio
 import logging
-from dataclasses import dataclass
 from typing import Tuple, List
 
 import conpty
 
 from core.comms_core.proto.terminalez import terminalez_pb2
+from core.comms_core.utils.shell_data import *
 
 logger = logging.getLogger(__name__)
 
 CONTENT_CHUNK_SIZE = 1 << 16    # ~64KB chunks
 CONTENT_ROLLING_BYTES = 8 << 20  # Keep ~8MB content
 CONTENT_PRUNE_BYTES = 12 << 20  # Prune when exceeding ~12MB
-
-class ShellData:
-    """Base class for internal messages routed to shell runners."""
-    pass
-
-
-@dataclass(frozen=True)
-class Data(ShellData):
-    """Sequence of input bytes from the server."""
-    data: bytes
-
-
-@dataclass(frozen=True)
-class Sync(ShellData):
-    """Information about the server's current sequence number."""
-    seq: int
-
-
-@dataclass(frozen=True)
-class Resize(ShellData):
-    """Resize the shell to a different number of rows and columns."""
-    rows: int
-    cols: int
-
 
 def prev_char_boundary(s_bytes: bytes, i: int) -> int:
     """
