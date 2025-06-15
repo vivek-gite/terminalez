@@ -34,9 +34,8 @@ async def big_start():
     # Set up the exit handler
     exit_handler = GracefulExitHandler(client)
 
-    # For Windows, we need to monitor the exit event
-    if sys.platform == 'win32':
-        asyncio.create_task(monitor_exit_event(exit_handler.exit_event))
+    # Monitor the exit event for all platforms (Windows and Unix)
+    asyncio.create_task(monitor_exit_event(exit_handler.exit_event))
 
     try:
         await client.connect()
