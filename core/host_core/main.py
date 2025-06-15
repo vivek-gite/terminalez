@@ -41,7 +41,9 @@ async def big_start():
     try:
         await client.connect()
         session_id, url = await client.initiate_connection(name)
-        logger.info(f"Connected successfully - Session ID: {session_id}, URL: {url}")
+        print(
+            f"✅ Connected successfully!\n\n"
+            f"Please access the terminal from this URL:\nhttps://termly.live{url}")
         await client.run()
 
     except Exception as e:
