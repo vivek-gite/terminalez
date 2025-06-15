@@ -47,7 +47,6 @@ class PlatformTerminalRunner:
             "Command Prompt": os.path.join(os.environ.get("WINDIR", ""), "System32", "cmd.exe"),
             "PowerShell": os.path.join(os.environ.get("WINDIR", ""), "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
             "PowerShell Core": shutil.which("pwsh") or "",
-            "Windows Terminal": os.path.join(os.getenv("LOCALAPPDATA", ""), "Microsoft", "WindowsApps", "wt.exe"),
             "Git Bash": "C:\\Program Files\\Git\\bin\\bash.exe"  # Default location for Git Bash
         }
 
