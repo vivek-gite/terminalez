@@ -139,7 +139,7 @@ class SessionMesh:
 
 
     @staticmethod
-    async def subscribe_transfers() -> AsyncGenerator[str]:
+    async def subscribe_transfers() -> AsyncGenerator[str, None]:
         redis_conn: redis.Redis | None = None
         while True:
             try:
