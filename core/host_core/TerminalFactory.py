@@ -7,12 +7,12 @@ import platform
 import logging
 from typing import Union
 
-from UnixPTyTerminal import UnixPTyTerminal
+from core.host_core.UnixPTyTerminal import UnixPTyTerminal
 
 # Conditionally import ConPTy only on Windows
 if platform.system().lower() == "windows":
     try:
-        from ConPTyTerminal import ConPTyTerminal
+        from core.host_core.ConPTyTerminal import ConPTyTerminal
         PTyTerminal = Union[ConPTyTerminal, UnixPTyTerminal]
     except ImportError:
         ConPTyTerminal = None
