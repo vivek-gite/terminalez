@@ -5,7 +5,7 @@ based on the operating system.
 import asyncio
 import platform
 import logging
-from typing import Union, Any
+from typing import Union
 
 from UnixPTyTerminal import UnixPTyTerminal
 

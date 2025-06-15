@@ -1,8 +1,16 @@
 import asyncio
 import logging
-from typing import Tuple, List
+import platform
+from typing import Tuple, List, Any, Optional
 
-import conpty
+# Conditionally import conpty on Windows
+if platform.system().lower() == "windows":
+    try:
+        import conpty
+    except ImportError:
+        conpty = None
+else:
+    conpty = None
 
 from core.comms_core.proto.terminalez import terminalez_pb2
 from core.comms_core.utils.shell_data import *
@@ -66,24 +74,24 @@ class ConPTyTerminal:
         self.seq_outdated = 0  # Number of times seq has been outdated
         self.content_offset = 0  # bytes which got pruned before the first character of `content`
         self.content: bytes = b""  # The content of the PTY
-
-        self.process: conpty.RealtimeConPtyProcess | None = None
+        self.process: Optional[Any] = None  # ConPTy process instance of type conpty.RealtimeConPtyProcess
         self.use_realtime = False
 
         # Event for clean shutdown
         self.shutdown_event = asyncio.Event()
 
         self.buffer_size = 16384 # Default buffer size for PTY
-        self.pid: int | None = None  # Process ID of the PTY process
-
-        # Tasks
+        self.pid: Optional[int] = None  # Process ID of the PTY process        # Tasks
         self.tasks: List[asyncio.Task] = []
 
     async def start(self):
         """Initialize the terminal process and start async tasks"""
-
+        # Check if conpty is available
+        if conpty is None:
+            raise RuntimeError("ConPTy module is not available. Please install the 'conpty' package for Windows terminal support.")
+        
         try:
-            self.process: conpty.RealtimeConPtyProcess = conpty.spawn_realtime(
+            self.process = conpty.spawn_realtime(
                 self.command,
                 console_size=(80, 24),
                 buffer_size=self.buffer_size)

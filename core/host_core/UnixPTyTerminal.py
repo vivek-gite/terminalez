@@ -1,9 +1,18 @@
 import asyncio
 import logging
 import os
-import pty
+import platform
 import subprocess
 from typing import Tuple, List, Optional
+
+# Conditionally import Unix-specific modules
+if platform.system().lower() != "windows":
+    import pty
+    import fcntl
+else:
+    # On Windows, these modules are not available
+    pty = None
+    fcntl = None
 
 from core.comms_core.proto.terminalez import terminalez_pb2
 from core.comms_core.utils.shell_data import *
@@ -80,12 +89,19 @@ class UnixPTyTerminal:
         self.shutdown_event = asyncio.Event()
 
         self.buffer_size = 16384 # Default buffer size for PTY
-
         # Tasks
         self.tasks: List[asyncio.Task] = []
 
     async def start(self):
         """Initialize the terminal process and start async tasks"""
+        # Check if we're on Windows - this terminal type is not supported on Windows
+        if platform.system().lower() == "windows":
+            raise RuntimeError("UnixPTyTerminal is not supported on Windows. Use ConPTyTerminal instead.")
+        
+        # Check if required modules are available
+        if pty is None or fcntl is None:
+            raise RuntimeError("Required Unix modules (pty, fcntl) are not available on this platform.")
+        
         try:
             # Create a pseudo-terminal pair
             self.master_fd, self.slave_fd = pty.openpty()
@@ -133,9 +149,7 @@ class UnixPTyTerminal:
             # Close the slave fd in the parent process (only child needs it)
             os.close(self.slave_fd)
             self.slave_fd = None
-            
             # Make master fd non-blocking
-            import fcntl
             flags = fcntl.fcntl(self.master_fd, fcntl.F_GETFL)
             fcntl.fcntl(self.master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
@@ -153,14 +167,15 @@ class UnixPTyTerminal:
     def _set_winsize(self, cols: int, rows: int):
         """Set the window size of the PTY"""
         if self.master_fd is not None:
-            import struct
-            import fcntl
-            import termios
-            
-            # Pack window size into the format expected by TIOCSWINSZ
-            winsize = struct.pack("HHHH", rows, cols, 0, 0)
-            fcntl.ioctl(self.master_fd, termios.TIOCSWINSZ, winsize)
-            self._winsize = (cols, rows)
+            if platform.system().lower() != "windows":
+                import struct
+                import fcntl
+                import termios
+
+                # Pack window size into the format expected by TIOCSWINSZ
+                winsize = struct.pack("HHHH", rows, cols, 0, 0)
+                fcntl.ioctl(self.master_fd, termios.TIOCSWINSZ, winsize)
+                self._winsize = (cols, rows)
 
     def is_alive(self) -> bool:
         """Check if the process is still alive"""
