@@ -86,6 +86,11 @@ case $choice in
             echo "  ./dist/tetrax_host"
             echo "  or"
             echo "  ./run.sh"
+            echo ""
+            print_color $BLUE "ℹ️  Platform Note:"
+            echo "  This executable is built for $(uname -s) on $(uname -m)"
+            echo "  It will NOT run on other operating systems"
+            echo "  For other platforms, build on the target system"
         fi
         ;;
     

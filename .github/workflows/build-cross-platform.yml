@@ -1,0 +1,156 @@
+name: Cross-Platform Build
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x86_64
+            executable: tetrax_host
+          - os: macos-latest
+            platform: macos
+            arch: arm64  # For Apple Silicon
+            executable: tetrax_host
+          - os: macos-13  # Intel-based macOS
+            platform: macos
+            arch: x86_64
+            executable: tetrax_host
+          - os: windows-latest
+            platform: windows
+            arch: x86_64
+            executable: tetrax_host.exe
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Install dependencies (macOS)
+      if: matrix.platform == 'macos'
+      run: |
+        # macOS usually has everything needed
+        echo "macOS dependencies ready"
+
+    - name: Install dependencies (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        # Use Windows-specific build process
+        echo "Windows build not implemented in this workflow"
+
+    - name: Create virtual environment
+      run: |
+        python -m venv venv
+
+    - name: Activate virtual environment and install packages (Unix)
+      if: matrix.platform != 'windows'
+      run: |
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Activate virtual environment and install packages (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        venv\Scripts\activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build application (Unix)
+      if: matrix.platform != 'windows'
+      run: |
+        source venv/bin/activate
+        python build_unix.py
+
+    - name: Build application (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        venv\Scripts\activate
+        # Use Windows-specific build script when available
+        echo "Windows build not implemented"
+
+    - name: Get architecture info
+      id: arch_info
+      run: |
+        if [ "${{ matrix.platform }}" != "windows" ]; then
+          ACTUAL_ARCH=$(uname -m)
+          echo "actual_arch=$ACTUAL_ARCH" >> $GITHUB_OUTPUT
+        else
+          echo "actual_arch=x86_64" >> $GITHUB_OUTPUT
+        fi
+      shell: bash
+
+    - name: Rename executable with platform info
+      if: matrix.platform != 'windows'
+      run: |
+        if [ -f "dist/${{ matrix.executable }}" ]; then
+          mv "dist/${{ matrix.executable }}" "dist/tetrax_host-${{ matrix.platform }}-${{ steps.arch_info.outputs.actual_arch }}"
+        fi
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: tetrax_host-${{ matrix.platform }}-${{ steps.arch_info.outputs.actual_arch }}
+        path: |
+          dist/tetrax_host-*
+          dist/*.exe
+        retention-days: 30
+
+    - name: Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/tetrax_host-*
+          dist/*.exe
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job to create a summary of all builds
+  summary:
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: List built executables
+      run: |
+        echo "## Built Executables" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        find . -name "tetrax_host*" -type f -exec ls -la {} \; | while read line; do
+          echo "- $line" >> $GITHUB_STEP_SUMMARY
+        done
+        
+    - name: Upload combined artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: all-platforms
+        path: ./**/tetrax_host*
+        retention-days: 90

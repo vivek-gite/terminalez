@@ -1,0 +1,51 @@
+# Multi-stage Dockerfile for cross-platform builds
+# This attempts to create a universal build environment
+
+# Base stage with Python and build tools
+FROM python:3.9-slim as base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt pyinstaller
+
+# Copy source code
+COPY . .
+
+# Make scripts executable
+RUN chmod +x build_unix.py build_unix.sh || true
+
+# Build stage
+FROM base as builder
+
+# Set environment variables for reproducible builds
+ENV PYTHONHASHSEED=1
+ENV PYTHONPATH=/app
+
+# Build the application
+RUN python build_unix.py
+
+# Runtime stage (minimal)
+FROM python:3.9-slim as runtime
+
+WORKDIR /app
+
+# Copy only the built executable
+COPY --from=builder /app/dist/ ./dist/
+
+# Make executable
+RUN chmod +x dist/* || true
+
+# Default command
+CMD ["./dist/tetrax_host"]
+
+# Export stage - for getting files out of container
+FROM scratch as export
+COPY --from=builder /app/dist/ /

@@ -174,11 +174,120 @@ make dev
 python3 core/host_core/main.py
 ```
 
-## Cross-Platform Notes
+## Cross-Platform Notes and Binary Compatibility
 
-- This Unix build configuration excludes Windows-specific modules
-- The application uses `UnixPTyTerminal` for terminal handling on Unix systems
-- The build includes Unix-specific modules like `pty`, `termios`, `fcntl`, etc.
+### ⚠️ Important: Platform-Specific Executables
+
+**Executables built on one platform CANNOT run on another platform:**
+
+- **Linux executable** (.bin or no extension): Only runs on Linux
+- **macOS executable**: Only runs on macOS  
+- **Windows executable** (.exe): Only runs on Windows
+
+This is because:
+- Different executable formats (ELF vs Mach-O vs PE)
+- Different system APIs and libraries
+- Different CPU architectures may be involved
+
+### Building for Multiple Platforms
+
+To distribute your application for multiple platforms:
+
+1. **Build on Linux** (for Linux users):
+   ```bash
+   ./build_unix.py  # Creates: dist/tetrax_host-linux-x86_64
+   ```
+
+2. **Build on macOS** (for macOS users):
+   ```bash
+   ./build_unix.py  # Creates: dist/tetrax_host-macos-arm64 (or x86_64)
+   ```
+
+3. **Build on Windows** (for Windows users):
+   ```bash
+   # Use the Windows-specific build process
+   ```
+
+### Platform Detection
+
+The build script automatically:
+- Detects your platform and architecture
+- Creates platform-specific executable names
+- Shows compatibility warnings
+- Uses Unix-specific modules (pty, termios, fcntl) for Unix systems
+
+### Running .bin Files
+
+If you have a `.bin` file that works on Linux but not macOS:
+- This is expected behavior - they are incompatible
+- You must build separately on each target platform
+- Consider using containerization (Docker) for consistent deployment
+
+## Alternative Cross-Platform Build Solutions
+
+Since you may not have access to all target platforms, here are alternative approaches:
+
+### 1. GitHub Actions (Recommended)
+
+Use the included GitHub Actions workflow (`.github/workflows/build-cross-platform.yml`) to automatically build for multiple platforms:
+
+1. **Push your code to GitHub**
+2. **GitHub Actions will automatically build for:**
+   - Linux (x86_64)
+   - macOS (both Intel and Apple Silicon)
+   - Windows (when configured)
+
+3. **Download the built executables** from the Actions artifacts
+
+**Setup:**
+```bash
+# Commit and push the workflow file
+git add .github/workflows/build-cross-platform.yml
+git commit -m "Add cross-platform build workflow"
+git push
+```
+
+### 2. Docker-Based Builds
+
+Use Docker to create consistent build environments:
+
+```bash
+# Build using Docker (Linux containers only)
+./build_docker.sh
+
+# Or manually with Docker
+docker build -f Dockerfile.multiplatform .
+```
+
+**Limitations:** Docker builds create Linux executables only, not true macOS binaries.
+
+### 3. Cloud Build Services
+
+Alternative cloud services for cross-platform builds:
+
+- **GitHub Actions** (free for public repos)
+- **GitLab CI/CD** (includes macOS runners)
+- **Azure DevOps** (cross-platform builds)
+- **Travis CI** (supports macOS)
+
+### 4. Virtual Machines
+
+If you need occasional macOS builds:
+
+- **macOS VM** (requires Apple hardware legally)
+- **Cloud macOS instances** (MacStadium, AWS EC2 Mac)
+- **GitHub Codespaces** with macOS runners
+
+### 5. Cross-Compilation (Experimental)
+
+Limited support, may not work reliably:
+
+```bash
+# Attempt cross-compilation (experimental)
+python build_unix.py --cross-compile
+```
+
+**Note:** This rarely works for Python applications with native dependencies.
 
 ## File Structure
 
