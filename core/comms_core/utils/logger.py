@@ -10,7 +10,7 @@ __log_queue = Queue()
 def setup_logger():
     # Create a parent logger
     _logger = logging.getLogger()
-    _logger.setLevel(logging.DEBUG)
+    _logger.setLevel(logging.CRITICAL+1)
 
 
     # Create a handler for the queue
@@ -24,18 +24,18 @@ def setup_logger():
 
     # Create handlers (e.g., console and file)
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.CRITICAL+1)
     console_handler.setFormatter(formatter)
 
-    file_handler = RotatingFileHandler(
-        "app.log", maxBytes=1024 * 1024, backupCount=5
-    )
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(formatter)
+    # file_handler = RotatingFileHandler(
+    #     "app.log", maxBytes=1024 * 1024, backupCount=5
+    # )
+    # file_handler.setLevel(logging.CRITICAL+1)
+    # file_handler.setFormatter(formatter)
 
 
     # Create a QueueListener to process logs in a separate thread
-    _listener = QueueListener(__log_queue, console_handler, file_handler)
+    _listener = QueueListener(__log_queue, console_handler)
 
 
     # Add the handlers to the logger
