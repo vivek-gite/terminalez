@@ -193,8 +193,8 @@ class UnixPTyTerminal:
                     self._read_from_master
                 )
 
-                if data:
-                    print("Unix PTY data: \n", repr(data))
+                # if data:
+                    # print("Unix PTY data: \n", repr(data))
 
                 if data and len(data) > 0:
                     self.content += data
