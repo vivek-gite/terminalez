@@ -89,8 +89,9 @@ jobs:
       if: matrix.platform == 'windows'
       run: |
         venv\Scripts\activate
-        # Use Windows-specific build script when available
-        echo "Windows build not implemented"
+        pip install pyinstaller
+        pyinstaller tetrax_host.spec
+      shell: cmd
 
     - name: Get architecture info
       id: arch_info
@@ -109,6 +110,14 @@ jobs:
         if [ -f "dist/${{ matrix.executable }}" ]; then
           mv "dist/${{ matrix.executable }}" "dist/tetrax_host-${{ matrix.platform }}-${{ steps.arch_info.outputs.actual_arch }}"
         fi
+
+    # - name: Rename executable with platform info (Windows)
+    #   if: matrix.platform == 'windows'
+    #   run: |
+    #     if exist "dist\tetrax_host.exe" (
+    #       copy "dist\tetrax_host.exe" "dist\tetrax_host-${{ matrix.platform }}-${{ steps.arch_info.outputs.actual_arch }}.exe"
+    #     )
+    #   shell: cmd
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
