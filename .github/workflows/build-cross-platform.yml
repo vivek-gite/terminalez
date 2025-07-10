@@ -74,7 +74,7 @@ jobs:
     - name: Activate virtual environment and install packages (Windows)
       if: matrix.platform == 'windows'
       run: |
-        venv\Scripts\activate
+        venv\Scripts\activate.bat
         pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
@@ -88,10 +88,8 @@ jobs:
     - name: Build application (Windows)
       if: matrix.platform == 'windows'
       run: |
-        venv\Scripts\activate
-        pip install pyinstaller
+        venv\Scripts\activate.bat
         pyinstaller tetrax_host.spec
-      shell: cmd
 
     - name: Get architecture info
       id: arch_info
