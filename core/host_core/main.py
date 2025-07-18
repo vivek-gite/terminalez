@@ -33,8 +33,6 @@ def get_local_ip_address():
             # Log the error and fallback to a default IP address
             logger.error(f"Failed to get local IP address: {e}")
             ip = "127.0.0.1"
-    finally:
-        s.close()
     return ip
 
 async def big_start():
