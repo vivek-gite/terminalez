@@ -2,7 +2,6 @@ import asyncio
 import os
 import subprocess
 import socket
-import sys
 
 from core.host_core.Controller import GrpcClient
 from core.host_core.graceful_shutdown_handler import GracefulExitHandler, monitor_exit_event
@@ -19,8 +18,24 @@ def get_username_by_env():
     return os.getlogin()
 
 def get_local_ip_address():
-    hostname = socket.gethostname()
-    return socket.gethostbyname(hostname)
+    """Get the local IP address."""
+    try:
+        # First try to get the local IP address
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+    except socket.gaierror:
+        try:
+            # If that fails, use a UDP socket to get the local IP address
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+        except Exception as e:
+            # Log the error and fallback to a default IP address
+            logger.error(f"Failed to get local IP address: {e}")
+            ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
 
 async def big_start():
     user_name = get_username_by_whoami() or get_username_by_env()
