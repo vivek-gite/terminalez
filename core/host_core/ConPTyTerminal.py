@@ -4,11 +4,13 @@ import platform
 from typing import Tuple, List, Any, Optional
 
 # Conditionally import conpty on Windows
+conpty_import_error: Optional[BaseException] = None
 if platform.system().lower() == "windows":
     try:
         import conpty
-    except ImportError:
+    except ImportError as exc:
         conpty = None
+        conpty_import_error = exc
 else:
     conpty = None
 
@@ -88,7 +90,10 @@ class ConPTyTerminal:
         """Initialize the terminal process and start async tasks"""
         # Check if conpty is available
         if conpty is None:
-            raise RuntimeError("ConPTy module is not available. Please install the 'conpty' package for Windows terminal support.")
+            raise RuntimeError(
+                "The 'conpty' extension module is not available. Build it with: "
+                "maturin develop --release --manifest-path native/conpty-py/Cargo.toml"
+            ) from conpty_import_error
         
         try:
             self.process = conpty.spawn_realtime(

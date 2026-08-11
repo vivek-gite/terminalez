@@ -1,0 +1,19 @@
+[package]
+name = "conpty-py"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "conpty"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.22"
+
+[target.'cfg(windows)'.dependencies]
+conpty_rs = { package = "conpty", version = "0.7" }
+
+[profile.release]
+lto = true
+codegen-units = 1
