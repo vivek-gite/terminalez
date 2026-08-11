@@ -34,6 +34,10 @@ class Server:
         try:
             asyncio.create_task(self.start_background_workers())
             await start_servers()
+        except asyncio.CancelledError:
+            logger.info("Server shutdown requested")
+            await self.graceful_shutdown()
+            raise
         except Exception as e:
             logger.exception(f"Servers shutting down due to {e}")
             await self.graceful_shutdown()
@@ -43,5 +47,4 @@ class Server:
         await self.shutdown.shutdown()
         # Terminate each of the existing connections
         await self.state.shutdown_all_sessions()
-
 

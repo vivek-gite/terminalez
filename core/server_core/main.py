@@ -15,5 +15,11 @@ async def start():
     await server.listen()
 
 if __name__ == "__main__":
-    asyncio.run(start())
-    listener.stop()
+    try:
+        asyncio.run(start())
+    except KeyboardInterrupt:
+        # asyncio cancels the server tasks on Ctrl+C; their cleanup handlers
+        # perform the actual shutdown before control reaches this point.
+        pass
+    finally:
+        listener.stop()

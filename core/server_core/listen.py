@@ -65,7 +65,13 @@ async def serve_grpc():
     logger.info(f"Starting gRPC server on {listen_addr}")
 
     await server.start()
-    await server.wait_for_termination()
+    try:
+        await server.wait_for_termination()
+    finally:
+        # Explicitly stop the gRPC server before asyncio closes its loop. This
+        # avoids un-awaited shutdown coroutines when the local process receives
+        # Ctrl+C or another cancellation signal.
+        await server.stop(grace=5)
 
 
 async def serve_fastapi():

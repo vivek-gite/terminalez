@@ -20,23 +20,19 @@ def get_username_by_env():
 
 def get_local_ip_address():
     """Get the local IP address."""
+    sock = None
     try:
-        # First try to get the local IP address
-        hostname = socket.gethostname()
-        ip = socket.gethostbyname(hostname)
-    except socket.gaierror:
-        try:
-            # If that fails, use a UDP socket to get the local IP address
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-        except Exception as e:
-            # Log the error and fallback to a default IP address
-            logger.error(f"Failed to get local IP address: {e}")
-            ip = "127.0.0.1"
+        # This does not send network traffic; it asks the OS which local interface
+        # would be used for an outbound connection.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except OSError as e:
+        logger.warning(f"Failed to determine local IP address: {e}")
+        return "127.0.0.1"
     finally:
-        s.close()
-    return ip
+        if sock is not None:
+            sock.close()
 
 async def big_start():
     user_name = get_username_by_whoami() or get_username_by_env()
@@ -45,7 +41,9 @@ async def big_start():
     name = f"{user_name}@{ip}"
     logger.info(f"Initializing connection with name: {name}")
 
-    client = GrpcClient("0.0.0.0:50051")
+    grpc_address = os.getenv("TERMLY_GRPC_ADDRESS", "127.0.0.1:50051")
+    web_url = os.getenv("TERMLY_WEB_URL", "http://127.0.0.1:5173").rstrip("/")
+    client = GrpcClient(grpc_address)
 
     # Set up the exit handler
     exit_handler = GracefulExitHandler(client)
@@ -58,7 +56,7 @@ async def big_start():
         session_id, url = await client.initiate_connection(name)
         print(
             f"✅ Connected successfully!\n\n"
-            f"Please access the terminal from this URL:\nhttps://termly.live{url}")
+            f"Please access the terminal from this URL:\n{web_url}{url}")
         await client.run()
 
     except Exception as e:
