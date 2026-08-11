@@ -55,6 +55,26 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Build the native ConPTY extension module
+Write-Host "🦀 Building native conpty extension..." -ForegroundColor Yellow
+try {
+    $cargoVersion = cargo --version 2>&1
+    Write-Host "✅ $cargoVersion found" -ForegroundColor Green
+} catch {
+    Write-Host "❌ A Rust toolchain is required to build the conpty extension." -ForegroundColor Red
+    Write-Host "Install it from https://rustup.rs and re-run this script." -ForegroundColor Yellow
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
+pip install maturin
+maturin develop --release --manifest-path native\conpty-py\Cargo.toml
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to build the conpty extension" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+
 # Install PyInstaller
 Write-Host "🔨 Installing PyInstaller..." -ForegroundColor Yellow
 pip install pyinstaller

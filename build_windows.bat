@@ -39,6 +39,23 @@ REM Install requirements
 echo 📋 Installing requirements...
 pip install -r requirements.txt
 
+REM Build the native ConPTY extension module
+echo 🦀 Building native conpty extension...
+cargo --version >nul 2>&1
+if errorlevel 1 (
+    echo ❌ A Rust toolchain is required to build the conpty extension.
+    echo Install it from https://rustup.rs and re-run this script.
+    pause
+    exit /b 1
+)
+pip install maturin
+maturin develop --release --manifest-path native\conpty-py\Cargo.toml
+if errorlevel 1 (
+    echo ❌ Failed to build the conpty extension
+    pause
+    exit /b 1
+)
+
 REM Install PyInstaller
 echo 🔨 Installing PyInstaller...
 pip install pyinstaller
